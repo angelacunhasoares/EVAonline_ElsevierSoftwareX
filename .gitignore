@@ -1,0 +1,21 @@
+# .gitignore
+
+### Python ###
+# Byte-compiled / optimized / DLL files
+__pycache__/
+
+# .gitignore
+.venv/
+__pycache__/
+*.pyc
+*.nc
+
+# Projeto EVAonline
+nasa_power_cache/
+openmeteo_cache/
+output/
+data/BRAZIL_SHAPEFILE/
+data/MATOPIBA_SHAPEFILE/
+.vscode/ 
+*.tmp
+*.bak

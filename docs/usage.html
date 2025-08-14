@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <title data-translate="nav_usage">Usage Guide</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="css/flatly.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="navbar-placeholder"></div>
+    <div class="container mt-4">
+        <h1 data-translate="nav_usage">Usage Guide</h1>
+        <p data-translate="usage_desc">This guide explains how to use EVAonline to calculate reference evapotranspiration (ET₀) using the FAO-56 Penman-Monteith model. Start on the Home page to explore maps and select coordinates, then proceed to the Calculate ETo page to perform calculations and view results.</p>
+
+        <h2 data-translate="step_by_step">Step-by-Step Instructions</h2>
+        <h3 data-translate="home_page">Home Page</h3>
+        <ol>
+            <li>
+                <strong data-translate="select_map">Select a Map</strong>
+                <p data-translate="select_map_desc">Choose a map to visualize geographic data or select coordinates:</p>
+                <ul>
+                    <li><strong data-translate="map_all_cities">All Cities in MATOPIBA</strong>: <span data-translate="map_all_cities_desc">Displays all municipalities in the MATOPIBA region with a perimeter outline.</span></li>
+                    <li><strong data-translate="map_piracicaba">Piracicaba City</strong>: <span data-translate="map_piracicaba_desc">Shows the city of Piracicaba with INMET station coordinates.</span></li>
+                    <li><strong data-translate="map_inmet">INMET Stations</strong>: <span data-translate="map_inmet_desc">Displays INMET weather stations with filters for automatic or conventional stations.</span></li>
+                    <li><strong data-translate="map_global">Global Map</strong>: <span data-translate="map_global_desc">Allows clicking to select coordinates anywhere in the world.</span></li>
+                </ul>
+                <p><img src="images/screenshot_map_all_cities.png" alt="All Cities in MATOPIBA Map" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+                <p><img src="images/screenshot_map_inmet.png" alt="INMET Stations Map with Filters" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+                <p><img src="images/screenshot_map_global.png" alt="Global Map for Coordinate Selection" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+            </li>
+            <li>
+                <strong data-translate="filter_inmet">Filter INMET Stations (if selected)</strong>
+                <p data-translate="filter_inmet_desc">If you choose the INMET Stations map, use checkboxes to filter:</p>
+                <ul>
+                    <li><strong data-translate="show_all_stations">Show All Stations</strong>: <span data-translate="show_all_stations_desc">Display all INMET stations.</span></li>
+                    <li><strong data-translate="show_automatic">Show Automatic Stations</strong>: <span data-translate="show_automatic_desc">Display only automatic stations.</span></li>
+                    <li><strong data-translate="show_conventional">Show Conventional Stations</strong>: <span data-translate="show_conventional_desc">Display only conventional stations.</span></li>
+                </ul>
+            </li>
+            <li>
+                <strong data-translate="capture_coordinates">Capture Coordinates (Global Map)</strong>
+                <p data-translate="capture_coordinates_desc">Click on the Global Map to capture coordinates (latitude and longitude), then click <strong>Calculate ET₀</strong> to proceed to the Calculate ETo page.</p>
+            </li>
+            <li>
+                <strong data-translate="additional_options">Explore Additional Options</strong>
+                <p data-translate="additional_options_desc">Use buttons to:</p>
+                <ul>
+                    <li><strong data-translate="about">About</strong>: <span data-translate="about_desc">Learn more about EVAonline.</span></li>
+                    <li><strong data-translate="read_docs">Read the Docs</strong>: <span data-translate="read_docs_desc">Access this documentation.</span></li>
+                    <li><strong data-translate="switch_language">Switch Language</strong>: <span data-translate="switch_language_desc">Toggle between languages (e.g., English, Portuguese).</span></li>
+                </ul>
+            </li>
+        </ol>
+
+        <h3 data-translate="calculate_eto_page">Calculate ETo Page</h3>
+        <ol start="5">
+            <li>
+                <strong data-translate="choose_calc_mode">Choose Calculation Mode</strong>
+                <p data-translate="choose_calc_mode_desc">Select the calculation mode from the dropdown menu:</p>
+                <ul>
+                    <li><strong data-translate="global_mode">Global</strong>: <span data-translate="global_mode_desc">Calculate ET₀ using coordinates from the Home page map or manual input.</span></li>
+                    <li><strong data-translate="matopiba_mode">MATOPIBA</strong>: <span data-translate="matopiba_mode_desc">Calculate ET₀ for a specific city in the MATOPIBA region.</span></li>
+                </ul>
+                <p><img src="images/screenshot_mode_selection.png" alt="Calculation Mode Selection" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+            </li>
+            <li>
+                <strong data-translate="define_coordinates">Define Coordinates</strong>
+                <p data-translate="define_coordinates_desc">Depending on the mode, you have the following options:</p>
+                <ul>
+                    <li><strong data-translate="global_mode">Global Mode</strong>:
+                        <ul>
+                            <li><strong data-translate="use_home_coords">Use Coordinates from Home</strong>: <span data-translate="use_home_coords_desc">Apply coordinates captured on the Home page.</span></li>
+                            <li><strong data-translate="click_map">Click on Map</strong>: <span data-translate="click_map_desc">Select coordinates on an interactive map.</span></li>
+                            <li><strong data-translate="manual_input">Manual Input</strong>: <span data-translate="manual_input_desc">Enter latitude (-90 to 90) and longitude (-180 to 180).</span></li>
+                        </ul>
+                        <p><img src="images/screenshot_map_selection.png" alt="Map Selection Interface" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+                    </li>
+                    <li><strong data-translate="matopiba_mode">MATOPIBA Mode</strong>:
+                        <ul>
+                            <li><strong data-translate="select_city">Select City</strong>: <span data-translate="select_city_desc">Choose a state and city from dropdown menus.</span></li>
+                            <li><strong data-translate="manual_input">Manual Input</strong>: <span data-translate="manual_input_desc_matopiba">Enter coordinates within the MATOPIBA region (-14.5 to -2.5 lat, -50.0 to -41.5 long).</span></li>
+                        </ul>
+                        <p><img src="images/screenshot_city_selection.png" alt="City Selection Dropdown" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+                    </li>
+                </ul>
+            </li>
+            <li>
+                <strong data-translate="select_data_source">Select Data Source and Period</strong>
+                <p data-translate="select_data_source_desc">Choose a data source (NASA POWER, Open-Meteo Archive, Open-Meteo Forecast, INMET) and specify the start and end dates.</p>
+                <p><img src="images/screenshot_data_selection.png" alt="Data Source and Period Selection" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+            </li>
+            <li>
+                <strong data-translate="confirm_parameters">Confirm Parameters</strong>
+                <p data-translate="confirm_parameters_desc">Review the selected parameters (mode, coordinates, data source, dates, elevation) and click <strong>Confirm</strong>. Adjust the elevation if needed.</p>
+                <p><img src="images/screenshot_parameters_confirmation.png" alt="Parameters Confirmation" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+            </li>
+            <li>
+                <strong data-translate="calculate_eto">Calculate ET₀</strong>
+                <p data-translate="calculate_eto_desc">Click the <strong>Calculate ET₀</strong> button to generate results. Results are displayed in two tabs: <strong>Table and Graphs</strong> and <strong>Statistics</strong>.</p>
+            </li>
+            <li>
+                <strong data-translate="view_results">View Results</strong>
+                <p data-translate="view_results_desc">Explore results in the following tabs:</p>
+                <ul>
+                    <li><strong data-translate="table_graphs">Table and Graphs</strong>:
+                        <ul>
+                            <li><strong data-translate="table">Table</strong>: <span data-translate="table_desc">Displays ET₀ and climatic variables (e.g., temperature, radiation, humidity).</span></li>
+                            <li><strong data-translate="graphs">Graphs</strong>: <span data-translate="graphs_desc">Choose from:</span>
+                                <ul>
+                                    <li data-translate="graph_eto_vs_temp">ET₀ vs. Temperature</li>
+                                    <li data-translate="graph_eto_vs_rad">ET₀ vs. Radiation</li>
+                                    <li data-translate="graph_eto_vs_temp_rad_prec">ET₀ vs. Temperature vs. Radiation vs. Precipitation</li>
+                                    <li data-translate="graph_heatmap">Heatmap of Correlations</li>
+                                    <li data-translate="graph_correlation">Correlation Graph</li>
+                                </ul>
+                            </li>
+                        </ul>
+                        <p><img src="images/screenshot_results_table.png" alt="ET₀ Results Table" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+                        <p><img src="images/screenshot_graph_eto_vs_temp.png" alt="ET₀ vs Temperature Graph" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+                        <p><img src="images/screenshot_graph_heatmap.png" alt="Heatmap of Correlations" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+                    </li>
+                    <li><strong data-translate="statistics">Statistics</strong>:
+                        <ul>
+                            <li data-translate="daily_data">Daily climatic data with ET₀</li>
+                            <li data-translate="descriptive_stats">Descriptive statistics</li>
+                            <li data-translate="normality_test">Normality test</li>
+                            <li data-translate="correlation_matrix">Correlation matrix</li>
+                            <li data-translate="eto_summary">ET₀ summary</li>
+                            <li data-translate="cumulative_dist">Cumulative distribution (optional)</li>
+                        </ul>
+                        <p><img src="images/screenshot_stats_table.png" alt="Statistical Analysis Table" class="img-fluid border rounded my-3" style="max-width: 600px;"></p>
+                    </li>
+                </ul>
+            </li>
+            <li>
+                <strong data-translate="additional_actions">Additional Actions</strong>
+                <p data-translate="additional_actions_desc">Use buttons to:</p>
+                <ul>
+                    <li><strong data-translate="enter_new_data">Enter New Data</strong>: <span data-translate="enter_new_data_desc">Reset inputs and start over.</span></li>
+                    <li><strong data-translate="clear_all">Clear All</strong>: <span data-translate="clear_all_desc">Clear all selections and results.</span></li>
+                    <li><strong data-translate="back_to_home">Back to Home</strong>: <span data-translate="back_to_home_desc">Return to the Home page.</span></li>
+                </ul>
+            </li>
+        </ol>
+
+        <h2 data-translate="user_options">User Options</h2>
+        <h3 data-translate="home_page_options">Home Page Options</h3>
+        <ul>
+            <li><strong data-translate="map_selection">Map Selection</strong>:
+                <ul>
+                    <li data-translate="map_all_cities">All Cities in MATOPIBA: <span data-translate="map_all_cities_desc">Visualize all municipalities in the MATOPIBA region.</span></li>
+                    <li data-translate="map_piracicaba">Piracicaba City: <span data-translate="map_piracicaba_desc">View Piracicaba with INMET station coordinates.</span></li>
+                    <li data-translate="map_inmet">INMET Stations: <span data-translate="map_inmet_desc">Display INMET stations with filters.</span></li>
+                    <li data-translate="map_global">Global Map: <span data-translate="map_global_desc">Select coordinates by clicking anywhere in the world.</span></li>
+                </ul>
+            </li>
+            <li><strong data-translate="inmet_filters">INMET Station Filters</strong> (<span data-translate="inmet_filters_desc">if INMET Stations map is selected</span>):
+                <ul>
+                    <li data-translate="show_all_stations">Show All Stations</li>
+                    <li data-translate="show_automatic">Show Automatic Stations</li>
+                    <li data-translate="show_conventional">Show Conventional Stations</li>
+                </ul>
+            </li>
+            <li><strong data-translate="navigation">Navigation</strong>:
+                <ul>
+                    <li data-translate="about">About: <span data-translate="about_desc">Access information about EVAonline.</span></li>
+                    <li data-translate="read_docs">Read the Docs: <span data-translate="read_docs_desc">View this documentation.</span></li>
+                    <li data-translate="switch_language">Switch Language: <span data-translate="switch_language_desc">Toggle between languages (e.g., English, Portuguese).</span></li>
+                </ul>
+            </li>
+            <li><strong data-translate="coordinate_capture">Coordinate Capture</strong>: <span data-translate="coordinate_capture_desc">Click on the Global Map to capture coordinates for ET₀ calculation.</span></li>
+        </ul>
+
+        <h3 data-translate="calculate_eto_options">Calculate ETo Page Options</h3>
+        <ul>
+            <li><strong data-translate="calculation_mode">Calculation Mode</strong>: <span data-translate="calculation_mode_desc">Global or MATOPIBA.</span></li>
+            <li><strong data-translate="coordinate_selection">Coordinate Selection</strong>:
+                <ul>
+                    <li data-translate="global_mode">Global: <span data-translate="global_mode_options">Use coordinates from Home, click on map, or manual input (latitude -90 to 90, longitude -180 to 180).</span></li>
+                    <li data-translate="matopiba_mode">MATOPIBA: <span data-translate="matopiba_mode_options">Select state/city or manual input within region bounds (-14.5 to -2.5 lat, -50.0 to -41.5 long).</span></li>
+                </ul>
+            </li>
+            <li><strong data-translate="data_source">Data Source</strong>: <span data-translate="data_source_options">NASA POWER, Open-Meteo Archive, Open-Meteo Forecast, INMET.</span></li>
+            <li><strong data-translate="date_range">Date Range</strong>: <span data-translate="date_range_desc">Select start and end dates for data retrieval.</span></li>
+            <li><strong data-translate="elevation_adjustment">Elevation Adjustment</strong>: <span data-translate="elevation_adjustment_desc">Automatically retrieved or manually adjusted (-1000 to 9000 meters).</span></li>
+            <li><strong data-translate="result_visualization">Result Visualization</strong>:
+                <ul>
+                    <li data-translate="table">Table: <span data-translate="table_desc">Display ET₀ and climatic variables.</span></li>
+                    <li data-translate="graphs">Graphs: <span data-translate="graphs_desc">Choose from ET₀ vs. Temperature, ET₀ vs. Radiation, Heatmap, etc.</span></li>
+                    <li data-translate="statistics">Statistics: <span data-translate="statistics_desc">View daily data, descriptive stats, normality tests, and more.</span></li>
+                </ul>
+            </li>
+            <li><strong data-translate="additional_actions">Additional Actions</strong>:
+                <ul>
+                    <li data-translate="use_home_coords">Use Coordinates from Home</li>
+                    <li data-translate="enter_new_data">Enter New Data</li>
+                    <li data-translate="clear_all">Clear All</li>
+                    <li data-translate="back_to_home">Back to Home</li>
+                </ul>
+            </li>
+        </ul>
+
+        <a href="index.html" class="btn btn-primary" data-translate="back_to_home">Back to Home</a>
+    </div>
+    <div id="footer-placeholder"></div>
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <script src="js/load_components.js"></script>
+    <script src="js/toggle_theme.js"></script>
+    <script src="js/translations.js"></script>
+</body>
+</html>

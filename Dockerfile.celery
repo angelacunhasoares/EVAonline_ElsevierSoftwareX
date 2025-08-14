@@ -1,0 +1,19 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Copia arquivos necessários
+COPY requirements-celery.txt .
+COPY setup.sh .
+COPY src/ ./src/
+
+ENV SERVICE=celery
+
+# Torna o setup.sh executável
+RUN chmod +x setup.sh
+
+# Executa o setup.sh para configurar localidade e instalar dependências
+RUN ./setup.sh
+
+# Comando para iniciar o worker Celery
+CMD ["celery", "-A", "src.eto_calculator", "worker", "--loglevel=info"]
