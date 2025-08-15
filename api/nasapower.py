@@ -1,24 +1,15 @@
 import asyncio
-import logging
-import os
 from datetime import date, datetime, timedelta
 from typing import Optional, Union, Tuple
 import pandas as pd
 import aiohttp
 from celery import shared_task
-import redis
+from redis import Redis
+from loguru import logger  # Alterado para loguru
 import pickle
-from glob import glob
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
-# Redis configuration (for Render)
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+# Configuração do Redis
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 class NasaPowerAPI:
     BASE_URL = "https://power.larc.nasa.gov/api/temporal/daily/point?"
@@ -33,8 +24,6 @@ class NasaPowerAPI:
         "PRECTOTCORR",
     ]
 
-    CACHE_DIR = os.path.join(os.path.dirname(__file__), "nasa_power_cache")
-    MAX_CACHE_SIZE_MB = 500
     NASA_CACHE_EXPIRY_HOURS = 720  # 30 days
 
     def __init__(
@@ -44,7 +33,6 @@ class NasaPowerAPI:
         long: float,
         lat: float,
         parameter: Optional[list] = None,
-        use_cache: bool = True,
         matopiba_only: bool = False,
     ):
         """
@@ -56,20 +44,10 @@ class NasaPowerAPI:
             long: Longitude (-180 to 180).
             lat: Latitude (-90 to 90).
             parameter: List of climate parameters to download; if None, uses defaults for FAO-56 ETo.
-            use_cache: Whether to use Redis cache (default: True).
             matopiba_only: Restrict coordinates to MATOPIBA region (default: False).
 
-        Returns:
-            None
-
-        Example:
-            >>> nasa = NasaPowerAPI(
-            ...     start="2023-01-01",
-            ...     end="2023-01-07",
-            ...     long=-45.0,
-            ...     lat=-10.0
-            ... )
-            >>> df = await nasa.get_weather()
+        Raises:
+            ValueError: If parameters, dates, or coordinates are invalid.
         """
         if parameter is not None:
             invalid_params = [p for p in parameter if p not in self.VALID_PARAMETERS]
@@ -114,51 +92,16 @@ class NasaPowerAPI:
 
         self.long = long
         self.lat = lat
-        self.use_cache = use_cache
         self.matopiba_only = matopiba_only
         self.request = self._build_request()
 
         # Initialize Redis client
         try:
-            self.redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+            self.redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
             self.redis_client.ping()  # Test connection
-        except redis.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis: {e}. Falling back to file cache.")
-            self.use_cache = False
+        except Exception as e:
+            logger.error(f"Failed to connect to Redis: {e}")
             self.redis_client = None
-
-        # Create file cache directory if needed
-        if not self.use_cache and not os.path.exists(self.CACHE_DIR):
-            os.makedirs(self.CACHE_DIR)
-
-    def _manage_cache_size(self) -> None:
-        """Manage file cache size, removing outdated or oldest files if necessary."""
-        if not self.use_cache or self.redis_client:
-            return
-
-        cache_files = glob(os.path.join(self.CACHE_DIR, "*.pkl"))
-        total_size = sum(os.path.getsize(f) for f in cache_files) / (1024 * 1024)  # Size in MB
-        expiry_time = datetime.now() - timedelta(hours=self.NASA_CACHE_EXPIRY_HOURS)
-
-        # Remove outdated files first
-        for f in cache_files:
-            cache_mtime = datetime.fromtimestamp(os.path.getmtime(f))
-            if cache_mtime < expiry_time:
-                file_size = os.path.getsize(f) / (1024 * 1024)
-                os.remove(f)
-                total_size -= file_size
-                logger.info(f"Removed outdated cache file: {f}")
-
-        # Remove oldest files if still over limit
-        if total_size > self.MAX_CACHE_SIZE_MB:
-            cache_files = glob(os.path.join(self.CACHE_DIR, "*.pkl"))
-            cache_files.sort(key=os.path.getmtime)
-            while total_size > self.MAX_CACHE_SIZE_MB and cache_files:
-                oldest_file = cache_files.pop(0)
-                file_size = os.path.getsize(oldest_file) / (1024 * 1024)
-                os.remove(oldest_file)
-                total_size -= file_size
-                logger.info(f"Removed oldest cache file: {oldest_file}")
 
     def _build_request(self) -> str:
         """Build the NASA POWER API request URL."""
@@ -170,8 +113,9 @@ class NasaPowerAPI:
             f"&latitude={self.lat}&start={start_date}&end={end_date}&format=JSON"
         )
 
-    async def _fetch_data(self, session: aiohttp.ClientSession) -> dict:
+    async def _fetch_data(self, session: aiohttp.ClientSession) -> Tuple[dict, list]:
         """Make an asynchronous request to the NASA POWER API."""
+        warnings = []
         try:
             async with session.get(self.request, timeout=30) as response:
                 response.raise_for_status()
@@ -181,140 +125,83 @@ class NasaPowerAPI:
                     or "properties" not in data
                     or "parameter" not in data["properties"]
                 ):
-                    raise ValueError("Invalid response from NASA POWER API.")
-                return data
+                    warnings.append("Invalid response from NASA POWER API.")
+                    logger.error(warnings[-1])
+                    return {}, warnings
+                return data, warnings
         except aiohttp.ClientResponseError as e:
-            logger.error(
-                f"HTTP error downloading NASA POWER data: {e.status} - {e.message}"
-            )
-            return {}
+            warnings.append(f"HTTP error downloading NASA POWER data: {e.status} - {e.message}")
+            logger.error(warnings[-1])
+            return {}, warnings
         except asyncio.TimeoutError:
-            logger.error(f"Timeout downloading NASA POWER data for {self.request}")
-            return {}
+            warnings.append(f"Timeout downloading NASA POWER data for {self.request}")
+            logger.error(warnings[-1])
+            return {}, warnings
         except Exception as e:
-            logger.error(f"Unexpected error downloading NASA POWER data: {e}")
-            return {}
-
-    def _is_cache_outdated(self, cache_key: str) -> bool:
-        """Check if cache is outdated (Redis or file)."""
-        if not self.use_cache:
-            return True
-
-        if self.redis_client:
-            cache_mtime = self.redis_client.get(f"{cache_key}:mtime")
-            if not cache_mtime:
-                logger.info(f"Redis cache not found: {cache_key}")
-                return True
-            cache_mtime = datetime.fromtimestamp(float(cache_mtime))
-            expiry_time = datetime.now() - timedelta(hours=self.NASA_CACHE_EXPIRY_HOURS)
-            if cache_mtime < expiry_time:
-                logger.info(
-                    f"Redis cache outdated: {cache_key}, mtime={cache_mtime}, expiry_time={expiry_time}"
-                )
-                return True
-            logger.info(f"Redis cache valid: {cache_key}, mtime={cache_mtime}")
-            return False
-        else:
-            cache_path = os.path.join(self.CACHE_DIR, f"{cache_key}.pkl")
-            if not os.path.exists(cache_path):
-                logger.info(f"File cache not found: {cache_path}")
-                return True
-            cache_mtime = datetime.fromtimestamp(os.path.getmtime(cache_path))
-            expiry_time = datetime.now() - timedelta(hours=self.NASA_CACHE_EXPIRY_HOURS)
-            if cache_mtime < expiry_time:
-                logger.info(
-                    f"File cache outdated: {cache_path}, mtime={cache_mtime}, expiry_time={expiry_time}"
-                )
-                return True
-            logger.info(f"File cache valid: {cache_path}, mtime={cache_mtime}")
-            return False
+            warnings.append(f"Unexpected error downloading NASA POWER data: {e}")
+            logger.error(warnings[-1])
+            return {}, warnings
 
     def _save_to_cache(self, df: pd.DataFrame, cache_key: str) -> None:
-        """Save data to Redis or file cache."""
-        if not self.use_cache:
+        """Save data to Redis cache."""
+        if not self.redis_client:
+            logger.warning("No Redis connection. Skipping cache save.")
             return
-
-        if self.redis_client:
-            try:
-                self.redis_client.setex(
-                    cache_key,
-                    timedelta(hours=self.NASA_CACHE_EXPIRY_HOURS),
-                    pickle.dumps(df)
-                )
-                self.redis_client.setex(
-                    f"{cache_key}:mtime",
-                    timedelta(hours=self.NASA_CACHE_EXPIRY_HOURS),
-                    datetime.now().timestamp()
-                )
-                logger.info(f"Saved to Redis cache: {cache_key}")
-            except redis.RedisError as e:
-                logger.error(f"Failed to save to Redis cache: {e}")
-        else:
-            cache_path = os.path.join(self.CACHE_DIR, f"{cache_key}.pkl")
-            with open(cache_path, "wb") as f:
-                pickle.dump(df, f)
-            logger.info(f"Saved to file cache: {cache_path}")
+        try:
+            self.redis_client.setex(
+                cache_key,
+                timedelta(hours=self.NASA_CACHE_EXPIRY_HOURS),
+                pickle.dumps(df)
+            )
+            logger.info(f"Saved to Redis cache: {cache_key}")
+        except Exception as e:
+            logger.error(f"Failed to save to Redis cache: {e}")
 
     def _load_from_cache(self, cache_key: str) -> Optional[pd.DataFrame]:
-        """Load data from Redis or file cache if available and valid."""
-        if not self.use_cache:
+        """Load data from Redis cache if available and valid."""
+        if not self.redis_client:
+            logger.warning("No Redis connection. Skipping cache load.")
             return None
-
-        if self.redis_client:
-            try:
-                cached_data = self.redis_client.get(cache_key)
-                if cached_data:
-                    df = pickle.loads(cached_data)
-                    if df.index.min() <= self.start and df.index.max() >= self.end:
-                        logger.info(f"Loaded from Redis cache: {cache_key}")
-                        return df
-                    else:
-                        logger.info(
-                            f"Redis cached data does not cover requested range: {cache_key}"
-                        )
-            except redis.RedisError as e:
-                logger.error(f"Failed to load from Redis cache: {e}")
-        else:
-            cache_path = os.path.join(self.CACHE_DIR, f"{cache_key}.pkl")
-            if os.path.exists(cache_path):
-                try:
-                    with open(cache_path, "rb") as f:
-                        df = pickle.load(f)
-                        if df.index.min() <= self.start and df.index.max() >= self.end:
-                            logger.info(f"Loaded from file cache: {cache_path}")
-                            return df
-                        else:
-                            logger.info(
-                                f"File cached data does not cover requested range: {cache_path}"
-                            )
-                except Exception as e:
-                    logger.error(f"Error loading file cache {cache_path}: {e}")
+        try:
+            cached_data = self.redis_client.get(cache_key)
+            if cached_data:
+                df = pickle.loads(cached_data)
+                if df.index.min() <= self.start and df.index.max() >= self.end:
+                    logger.info(f"Loaded from Redis cache: {cache_key}")
+                    return df
+                else:
+                    logger.info(f"Redis cached data does not cover requested range: {cache_key}")
+            else:
+                logger.info(f"Redis cache not found: {cache_key}")
+        except Exception as e:
+            logger.error(f"Failed to load from Redis cache: {e}")
         return None
 
     @shared_task
-    async def get_weather(self) -> Optional[pd.DataFrame]:
+    async def get_weather(self) -> Tuple[pd.DataFrame, list]:
         """
         Download daily weather data from NASA POWER asynchronously.
 
         Returns:
-            pd.DataFrame: DataFrame with daily climate parameters indexed by date, or None if failed.
+            Tuple[pd.DataFrame, list]: DataFrame with daily climate parameters indexed by date and list of warnings.
 
         Example:
             >>> nasa = NasaPowerAPI(start="2023-01-01", end="2023-01-07", long=-45.0, lat=-10.0)
-            >>> df = await nasa.get_weather()
+            >>> df, warnings = await nasa.get_weather()
         """
         logger.info(
             f"Downloading data for {self.start} to {self.end}, lat={self.lat}, long={self.long}"
         )
-        cache_key = f"nasa_power_{self.start.strftime('%Y%m%d')}_{self.end.strftime('%Y%m%d')}_{self.lat}_{self.long}"
+        cache_key = f"nasa_power:{self.start.strftime('%Y%m%d')}:{self.end.strftime('%Y%m%d')}:{self.lat}:{self.long}"
         df = None
+        warnings = []
 
-        if self.use_cache:
-            df = self._load_from_cache(cache_key)
+        df = self._load_from_cache(cache_key)
 
-        if df is None or (self.use_cache and self._is_cache_outdated(cache_key)):
+        if df is None:
             async with aiohttp.ClientSession() as session:
-                data = await self._fetch_data(session)
+                data, fetch_warnings = await self._fetch_data(session)
+                warnings.extend(fetch_warnings)
                 if data and "properties" in data and "parameter" in data["properties"]:
                     params = data["properties"]["parameter"]
                     weather_df = pd.DataFrame(params)
@@ -325,17 +212,18 @@ class NasaPowerAPI:
                     weather_df = weather_df.loc[self.start:self.end].dropna(how="all")
                     weather_df = weather_df[self.parameter]
 
-                    if self.use_cache:
-                        self._save_to_cache(weather_df, cache_key)
+                    self._save_to_cache(weather_df, cache_key)
                     df = weather_df
                 else:
                     logger.error(f"Invalid or empty API response for {self.request}")
-                    return None
+                    warnings.append("No valid data available from NASA POWER API.")
+                    return pd.DataFrame(), warnings
 
-        if df is None:
+        if df is None or df.empty:
             logger.error(
                 f"Failed to retrieve NASA POWER data for lat={self.lat}, lng={self.long} between {self.start} and {self.end}"
             )
-            return None
+            warnings.append("Failed to retrieve NASA POWER data.")
+            return pd.DataFrame(), warnings
 
-        return df
+        return df, warnings

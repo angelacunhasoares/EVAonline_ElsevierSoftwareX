@@ -1,6 +1,5 @@
 from typing import Dict
 
-
 def get_translations(lang: str = "pt") -> Dict[str, str]:
     """
     Returns a dictionary of translations for the specified language.
@@ -153,7 +152,25 @@ def get_translations(lang: str = "pt") -> Dict[str, str]:
             "invalid_mode": "Modo inválido: {}. Escolha 'Global' ou 'MATOPIBA'.",
             "no_coords_global": "Latitude ou longitude não fornecidas para o modo Global.",
             "no_coords_matopiba": "Latitude ou longitude não fornecidas para o modo MATOPIBA (coordenadas manuais).",
-            "no_matching_city": "Nenhuma cidade correspondente a '{}' no estado '{}' para o modo MATOPIBA."
+            "no_matching_city": "Nenhuma cidade correspondente a '{}' no estado '{}' para o modo MATOPIBA.",
+
+            # Traduções específicas do main.py
+            "choose_map": "Escolher Mapa",
+            "map_options": ["MATOPIBA", "Piracicaba", "Global"],
+            "no_map_selected": "Nenhum mapa selecionado",
+            "map_desc_interactive": "Mapa interativo para selecionar coordenadas",
+            "legend": "Legenda",
+            "legend_map1_cities": "Cidades do MATOPIBA",
+            "legend_map1_zoom": "Aumentar zoom para detalhes",
+            "perimeter": "Perímetro",
+            "source": "Fonte",
+            "map_source_all_cities": "Dados do MATOPIBA",
+            "map2_desc": "Mapa da cidade de Piracicaba",
+            "legend_map2_city": "Cidade de Piracicaba",
+            "legend_map2_perimeter": "Perímetro da cidade",
+            "legend_map4_global": "Mapa global interativo",
+            "error_elevation": "Erro ao obter elevação",
+            "no_coords_selected": "Nenhuma coordenada selecionada"
         },
         "en": {
             # Interface principal
@@ -291,7 +308,25 @@ def get_translations(lang: str = "pt") -> Dict[str, str]:
             "invalid_mode": "Invalid mode: {}. Choose 'Global' or 'MATOPIBA'.",
             "no_coords_global": "Latitude or longitude not provided for Global mode.",
             "no_coords_matopiba": "Latitude or longitude not provided for MATOPIBA mode (manual coordinates).",
-            "no_matching_city": "No matching city '{}' in state '{}' for MATOPIBA mode."
+            "no_matching_city": "No matching city '{}' in state '{}' for MATOPIBA mode.",
+
+            # Traduções específicas do main.py
+            "choose_map": "Choose Map",
+            "map_options": ["MATOPIBA", "Piracicaba", "Global"],
+            "no_map_selected": "No map selected",
+            "map_desc_interactive": "Interactive map for selecting coordinates",
+            "legend": "Legend",
+            "legend_map1_cities": "MATOPIBA Cities",
+            "legend_map1_zoom": "Zoom in for details",
+            "perimeter": "Perimeter",
+            "source": "Source",
+            "map_source_all_cities": "MATOPIBA Data",
+            "map2_desc": "Map of Piracicaba city",
+            "legend_map2_city": "Piracicaba City",
+            "legend_map2_perimeter": "City Perimeter",
+            "legend_map4_global": "Interactive Global Map",
+            "error_elevation": "Error retrieving elevation",
+            "no_coords_selected": "No coordinates selected"
         }
     }
     return translations.get(lang, translations["pt"])

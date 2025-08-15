@@ -1,27 +1,19 @@
 import asyncio
-import logging
+import json
 import os
 from datetime import date, datetime, timedelta
-from glob import glob
 from typing import Optional, Union, Tuple
 import numpy as np
 import pandas as pd
 from aiohttp import ClientSession
 from celery import shared_task
-import redis
-import pickle
+from redis import Redis
+from loguru import logger  # Alterado para loguru
 import aiohttp
+import pickle
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
-# Redis configuration (for Render)
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-
+# Configuração do Redis
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 @shared_task
 async def get_openmeteo_elevation(lat: float, long: float) -> Tuple[float, list]:
@@ -53,33 +45,32 @@ async def get_openmeteo_elevation(lat: float, long: float) -> Tuple[float, list]
         return 0.0, warnings
 
     # Cache key
-    cache_key = f"elevation_{lat}_{long}"
+    cache_key = f"elevation:{lat}:{long}"
     cache_expiry_hours = 24  # 24 hours
-    redis_client = None
 
     # Initialize Redis client
     try:
-        redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+        redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
         redis_client.ping()  # Test connection
-    except redis.ConnectionError as e:
-        logger.error(f"Failed to connect to Redis: {e}. No cache will be used.")
-        redis_client = None
+    except Exception as e:
+        logger.error(f"Failed to connect to Redis: {e}. Returning default elevation.")
+        warnings.append(f"Redis connection failed: {e}")
+        return 0.0, warnings
 
     # Check cache
-    if redis_client:
-        try:
-            cached_data = redis_client.get(cache_key)
-            if cached_data:
-                elevation = float(cached_data)
-                if -1000 <= elevation <= 9000:
-                    logger.info(f"Loaded elevation from Redis cache: {elevation} meters")
-                    return elevation, warnings
-                else:
-                    warnings.append(f"Invalid cached elevation: {elevation}")
-                    logger.warning(warnings[-1])
-        except redis.RedisError as e:
-            warnings.append(f"Error accessing Redis cache: {e}")
-            logger.error(warnings[-1])
+    try:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            elevation = float(cached_data)
+            if -1000 <= elevation <= 9000:
+                logger.info(f"Loaded elevation from Redis cache: {elevation} meters")
+                return elevation, warnings
+            else:
+                warnings.append(f"Invalid cached elevation: {elevation}")
+                logger.warning(warnings[-1])
+    except Exception as e:
+        warnings.append(f"Error accessing Redis cache: {e}")
+        logger.error(warnings[-1])
 
     # Fetch elevation from API
     url = f"https://api.open-meteo.com/v1/elevation?latitude={lat}&longitude={long}"
@@ -94,27 +85,18 @@ async def get_openmeteo_elevation(lat: float, long: float) -> Tuple[float, list]
                     return 0.0, warnings
 
                 elevation = data["elevation"][0]
-                if (
-                    not isinstance(elevation, (int, float))
-                    or elevation < -1000
-                    or elevation > 9000
-                ):
+                if not isinstance(elevation, (int, float)) or elevation < -1000 or elevation > 9000:
                     warnings.append(f"Invalid elevation value returned: {elevation}")
                     logger.error(warnings[-1])
                     return 0.0, warnings
 
                 # Save to cache
-                if redis_client:
-                    try:
-                        redis_client.setex(
-                            cache_key,
-                            timedelta(hours=cache_expiry_hours),
-                            str(elevation)
-                        )
-                        logger.info(f"Saved elevation to Redis cache: {elevation} meters")
-                    except redis.RedisError as e:
-                        warnings.append(f"Failed to save to Redis cache: {e}")
-                        logger.error(warnings[-1])
+                try:
+                    redis_client.setex(cache_key, timedelta(hours=cache_expiry_hours), str(elevation))
+                    logger.info(f"Saved elevation to Redis cache: {elevation} meters")
+                except Exception as e:
+                    warnings.append(f"Failed to save to Redis cache: {e}")
+                    logger.error(warnings[-1])
 
                 logger.info(f"Elevation obtained for lat={lat}, long={long}: {elevation} meters")
                 return float(elevation), warnings
@@ -132,7 +114,6 @@ async def get_openmeteo_elevation(lat: float, long: float) -> Tuple[float, list]
             logger.error(warnings[-1])
             return 0.0, warnings
 
-
 class BaseOpenMeteoAPI:
     VALID_PARAMETERS = {
         "temperature_2m_max": "T2M_MAX",
@@ -144,16 +125,12 @@ class BaseOpenMeteoAPI:
         "precipitation_sum": "PRECTOTCORR",
     }
 
-    CACHE_DIR = os.path.join(os.path.dirname(__file__), "openmeteo_cache")
-    MAX_CACHE_SIZE_MB = 500
-
     def __init__(
         self,
         start: Union[datetime, date],
         end: Union[datetime, date],
         long: float,
         lat: float,
-        use_cache: bool = True,
         cache_expiry_hours: int = 24,
     ):
         """
@@ -164,14 +141,10 @@ class BaseOpenMeteoAPI:
             end: End date (datetime, date, or pd.Timestamp).
             long: Longitude (-180 to 180).
             lat: Latitude (-90 to 90).
-            use_cache: Whether to use Redis or file cache (default: True).
             cache_expiry_hours: Cache expiration time in hours.
 
         Raises:
             ValueError: If end date is before start date, or coordinates are invalid.
-
-        Example:
-            >>> api = BaseOpenMeteoAPI(start="2023-01-01", end="2023-01-07", long=-45.0, lat=-10.0)
         """
         # Validate coordinates
         if not (-90 <= lat <= 90):
@@ -195,53 +168,16 @@ class BaseOpenMeteoAPI:
 
         self.long = long
         self.lat = lat
-        self.use_cache = use_cache
         self.cache_expiry_hours = cache_expiry_hours
         self.request_url = self._build_request()
 
         # Initialize Redis client
         try:
-            self.redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+            self.redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
             self.redis_client.ping()  # Test connection
-        except redis.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis: {e}. Falling back to file cache.")
+        except Exception as e:
+            logger.error(f"Failed to connect to Redis: {e}")
             self.redis_client = None
-            self.use_cache = False
-
-        # Create file cache directory if needed
-        if not self.use_cache and not os.path.exists(self.CACHE_DIR):
-            os.makedirs(self.CACHE_DIR)
-        if not self.redis_client and self.use_cache:
-            self._manage_cache_size()
-
-    def _manage_cache_size(self) -> None:
-        """Manage file cache size, removing outdated or oldest files if necessary."""
-        if not self.use_cache or self.redis_client:
-            return
-
-        cache_files = glob(os.path.join(self.CACHE_DIR, "*.pkl"))
-        total_size = sum(os.path.getsize(f) for f in cache_files) / (1024 * 1024)
-        expiry_time = datetime.now() - timedelta(hours=self.cache_expiry_hours)
-
-        # Remove outdated files first
-        for f in cache_files:
-            cache_mtime = datetime.fromtimestamp(os.path.getmtime(f))
-            if cache_mtime < expiry_time:
-                file_size = os.path.getsize(f) / (1024 * 1024)
-                os.remove(f)
-                total_size -= file_size
-                logger.info(f"Removed outdated cache file: {f}")
-
-        # Remove oldest files if still over limit
-        if total_size > self.MAX_CACHE_SIZE_MB:
-            cache_files = glob(os.path.join(self.CACHE_DIR, "*.pkl"))
-            cache_files.sort(key=os.path.getmtime)
-            while total_size > self.MAX_CACHE_SIZE_MB and cache_files:
-                oldest_file = cache_files.pop(0)
-                file_size = os.path.getsize(oldest_file) / (1024 * 1024)
-                os.remove(oldest_file)
-                total_size -= file_size
-                logger.info(f"Removed oldest cache file: {oldest_file}")
 
     async def _fetch_data(self, session: ClientSession, url: str) -> Tuple[dict, list]:
         """
@@ -276,106 +212,44 @@ class BaseOpenMeteoAPI:
         """Build the API request URL (implemented by subclasses)."""
         raise NotImplementedError("Subclasses must implement _build_request")
 
-    def _is_cache_outdated(self, cache_key: str) -> bool:
-        """Check if cache is outdated (Redis or file)."""
-        if not self.use_cache:
-            return True
-
-        if self.redis_client:
-            cache_mtime = self.redis_client.get(f"{cache_key}:mtime")
-            if not cache_mtime:
-                logger.info(f"Redis cache not found: {cache_key}")
-                return True
-            cache_mtime = datetime.fromtimestamp(float(cache_mtime))
-            expiry_time = datetime.now() - timedelta(hours=self.cache_expiry_hours)
-            if cache_mtime < expiry_time:
-                logger.info(
-                    f"Redis cache outdated: {cache_key}, mtime={cache_mtime}, expiry_time={expiry_time}"
-                )
-                return True
-            logger.info(f"Redis cache valid: {cache_key}, mtime={cache_mtime}")
-            return False
-        else:
-            cache_path = os.path.join(self.CACHE_DIR, f"{cache_key}.pkl")
-            if not os.path.exists(cache_path):
-                logger.info(f"File cache not found: {cache_path}")
-                return True
-            cache_mtime = datetime.fromtimestamp(os.path.getmtime(cache_path))
-            expiry_time = datetime.now() - timedelta(hours=self.cache_expiry_hours)
-            if cache_mtime < expiry_time:
-                logger.info(
-                    f"File cache outdated: {cache_path}, mtime={cache_mtime}, expiry_time={expiry_time}"
-                )
-                return True
-            logger.info(f"File cache valid: {cache_path}, mtime={cache_mtime}")
-            return False
-
     def _save_to_cache(self, df: pd.DataFrame, cache_key: str) -> None:
-        """Save data to Redis or file cache."""
-        if not self.use_cache:
+        """Save data to Redis cache."""
+        if not self.redis_client:
+            logger.warning("No Redis connection. Skipping cache save.")
             return
-
-        if self.redis_client:
-            try:
-                self.redis_client.setex(
-                    cache_key,
-                    timedelta(hours=self.cache_expiry_hours),
-                    pickle.dumps(df)
-                )
-                self.redis_client.setex(
-                    f"{cache_key}:mtime",
-                    timedelta(hours=self.cache_expiry_hours),
-                    datetime.now().timestamp()
-                )
-                logger.info(f"Saved to Redis cache: {cache_key}")
-            except redis.RedisError as e:
-                logger.error(f"Failed to save to Redis cache: {e}")
-        else:
-            cache_path = os.path.join(self.CACHE_DIR, f"{cache_key}.pkl")
-            with open(cache_path, "wb") as f:
-                pickle.dump(df, f)
-            logger.info(f"Saved to file cache: {cache_path}")
+        try:
+            self.redis_client.setex(
+                cache_key,
+                timedelta(hours=self.cache_expiry_hours),
+                pickle.dumps(df)
+            )
+            logger.info(f"Saved to Redis cache: {cache_key}")
+        except Exception as e:
+            logger.error(f"Failed to save to Redis cache: {e}")
 
     def _load_from_cache(self, cache_key: str, start: datetime, end: datetime) -> Optional[pd.DataFrame]:
-        """Load data from Redis or file cache if available and valid."""
-        if not self.use_cache:
+        """Load data from Redis cache if available and valid."""
+        if not self.redis_client:
+            logger.warning("No Redis connection. Skipping cache load.")
             return None
-
-        if self.redis_client:
-            try:
-                cached_data = self.redis_client.get(cache_key)
-                if cached_data:
-                    df = pickle.loads(cached_data)
-                    if df.index.min() <= start and df.index.max() >= end:
-                        logger.info(f"Loaded from Redis cache: {cache_key}")
-                        return df
-                    else:
-                        logger.info(
-                            f"Redis cached data does not cover requested range: {cache_key}"
-                        )
-            except redis.RedisError as e:
-                logger.error(f"Failed to load from Redis cache: {e}")
-        else:
-            cache_path = os.path.join(self.CACHE_DIR, f"{cache_key}.pkl")
-            if os.path.exists(cache_path):
-                try:
-                    with open(cache_path, "rb") as f:
-                        df = pickle.load(f)
-                        if df.index.min() <= start and df.index.max() >= end:
-                            logger.info(f"Loaded from file cache: {cache_path}")
-                            return df
-                        else:
-                            logger.info(
-                                f"File cached data does not cover requested range: {cache_path}"
-                            )
-                except Exception as e:
-                    logger.error(f"Error loading file cache {cache_path}: {e}")
+        try:
+            cached_data = self.redis_client.get(cache_key)
+            if cached_data:
+                df = pickle.loads(cached_data)
+                if df.index.min() <= start and df.index.max() >= end:
+                    logger.info(f"Loaded from Redis cache: {cache_key}")
+                    return df
+                else:
+                    logger.info(f"Redis cached data does not cover requested range: {cache_key}")
+            else:
+                logger.info(f"Redis cache not found: {cache_key}")
+        except Exception as e:
+            logger.error(f"Failed to load from Redis cache: {e}")
         return None
 
     async def get_weather(self) -> Tuple[pd.DataFrame, list]:
         """Fetch weather data (implemented by subclasses)."""
         raise NotImplementedError("Subclasses must implement get_weather")
-
 
 class OpenMeteoArchiveAPI(BaseOpenMeteoAPI):
     ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive?"
@@ -387,10 +261,9 @@ class OpenMeteoArchiveAPI(BaseOpenMeteoAPI):
         end: Union[datetime, date],
         long: float,
         lat: float,
-        use_cache: bool = True,
     ):
         """Initialize the Open-Meteo Archive API client."""
-        super().__init__(start, end, long, lat, use_cache, self.ARCHIVE_CACHE_EXPIRY_HOURS)
+        super().__init__(start, end, long, lat, cache_expiry_hours=self.ARCHIVE_CACHE_EXPIRY_HOURS)
 
     def _build_request(self) -> str:
         """Build the Open-Meteo Archive API request URL."""
@@ -409,22 +282,17 @@ class OpenMeteoArchiveAPI(BaseOpenMeteoAPI):
 
         Returns:
             Tuple[pd.DataFrame, list]: DataFrame with weather data indexed by date and list of warnings.
-
-        Example:
-            >>> api = OpenMeteoArchiveAPI(start="2023-01-01", end="2023-01-07", long=-45.0, lat=-10.0)
-            >>> df, warnings = await api.get_weather()
         """
         logger.info(
             f"Downloading Archive data for {self.start} to {self.end}, lat={self.lat}, long={self.long}"
         )
-        cache_key = f"archive_{self.start.strftime('%Y%m%d')}_{self.end.strftime('%Y%m%d')}_{self.lat}_{self.long}"
+        cache_key = f"archive:{self.start.strftime('%Y%m%d')}:{self.end.strftime('%Y%m%d')}:{self.lat}:{self.long}"
         df = None
         warnings = []
 
-        if self.use_cache:
-            df = self._load_from_cache(cache_key, self.start, self.end)
+        df = self._load_from_cache(cache_key, self.start, self.end)
 
-        if df is None or (self.use_cache and self._is_cache_outdated(cache_key)):
+        if df is None:
             async with ClientSession() as session:
                 data, fetch_warnings = await self._fetch_data(session, self.request_url)
                 warnings.extend(fetch_warnings)
@@ -458,8 +326,7 @@ class OpenMeteoArchiveAPI(BaseOpenMeteoAPI):
                         )
                         warnings.append(warning)
                         logger.warning(warning)
-                    if self.use_cache:
-                        self._save_to_cache(df, cache_key)
+                    self._save_to_cache(df, cache_key)
                 else:
                     warning = "No valid data available from Archive API."
                     warnings.append(warning)
@@ -474,7 +341,6 @@ class OpenMeteoArchiveAPI(BaseOpenMeteoAPI):
 
         return df, warnings
 
-
 class OpenMeteoForecastAPI(BaseOpenMeteoAPI):
     FORECAST_URL = "https://api.open-meteo.com/v1/forecast?"
     FORECAST_CACHE_EXPIRY_HOURS = 24  # 1 day
@@ -485,10 +351,9 @@ class OpenMeteoForecastAPI(BaseOpenMeteoAPI):
         end: Union[datetime, date],
         long: float,
         lat: float,
-        use_cache: bool = True,
     ):
         """Initialize the Open-Meteo Forecast API client."""
-        super().__init__(start, end, long, lat, use_cache, self.FORECAST_CACHE_EXPIRY_HOURS)
+        super().__init__(start, end, long, lat, cache_expiry_hours=self.FORECAST_CACHE_EXPIRY_HOURS)
 
         # Validate date range for forecast (max 14 days past data)
         period_days = (self.end - self.start).days + 1
@@ -513,22 +378,17 @@ class OpenMeteoForecastAPI(BaseOpenMeteoAPI):
 
         Returns:
             Tuple[pd.DataFrame, list]: DataFrame with weather data indexed by date and list of warnings.
-
-        Example:
-            >>> api = OpenMeteoForecastAPI(start="2023-01-01", end="2023-01-07", long=-45.0, lat=-10.0)
-            >>> df, warnings = await api.get_weather()
         """
         logger.info(
             f"Downloading Forecast data for {self.start} to {self.end}, lat={self.lat}, long={self.long}"
         )
-        cache_key = f"forecast_{self.start.strftime('%Y%m%d')}_{self.end.strftime('%Y%m%d')}_{self.lat}_{self.long}"
+        cache_key = f"forecast:{self.start.strftime('%Y%m%d')}:{self.end.strftime('%Y%m%d')}:{self.lat}:{self.long}"
         df = None
         warnings = []
 
-        if self.use_cache:
-            df = self._load_from_cache(cache_key, self.start, self.end)
+        df = self._load_from_cache(cache_key, self.start, self.end)
 
-        if df is None or (self.use_cache and self._is_cache_outdated(cache_key)):
+        if df is None:
             async with ClientSession() as session:
                 data, fetch_warnings = await self._fetch_data(session, self.request_url)
                 warnings.extend(fetch_warnings)
@@ -562,8 +422,7 @@ class OpenMeteoForecastAPI(BaseOpenMeteoAPI):
                         )
                         warnings.append(warning)
                         logger.warning(warning)
-                    if self.use_cache:
-                        self._save_to_cache(df, cache_key)
+                    self._save_to_cache(df, cache_key)
                 else:
                     warning = "No valid data available from Forecast API."
                     warnings.append(warning)

@@ -1,15 +1,12 @@
-import logging
 from datetime import datetime
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 import numpy as np
 import pandas as pd
 from celery import shared_task
+from loguru import logger
 from api.nasapower import NasaPowerAPI
 from api.openmeteo import OpenMeteoArchiveAPI, OpenMeteoForecastAPI
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.data_fusion import data_fusion
 
 @shared_task
 async def download_weather_data(
@@ -18,25 +15,25 @@ async def download_weather_data(
     data_final: str,
     longitude: float,
     latitude: float,
-) -> Tuple[pd.DataFrame, list]:
+) -> Tuple[pd.DataFrame, List[str]]:
     """
     Download weather data from specified sources for given coordinates and date range.
     
     Args:
-        data_source: Data source ("NASA POWER", "Open-Meteo Archive", "Open-Meteo Forecast", or "Data Fusion")
-        data_inicial: Start date in dd/mm/yyyy format
-        data_final: End date in dd/mm/yyyy format
+        data_source: Data source ("nasa_power", "openmeteo_archive", "openmeteo_forecast", or "Data Fusion")
+        data_inicial: Start date in YYYY-MM-DD format
+        data_final: End date in YYYY-MM-DD format
         longitude: Longitude (-180 to 180)
         latitude: Latitude (-90 to 90)
     
     Returns:
-        Tuple[pd.DataFrame, list]: Weather data DataFrame and list of warnings
+        Tuple[pd.DataFrame, List[str]]: Weather data DataFrame and list of warnings
     
     Example:
         >>> df, warnings = await download_weather_data(
         ...     data_source="Data Fusion",
-        ...     data_inicial="01/01/2023",
-        ...     data_final="07/01/2023",
+        ...     data_inicial="2023-01-01",
+        ...     data_final="2023-01-07",
         ...     longitude=-45.0,
         ...     latitude=-10.0
         ... )
@@ -49,27 +46,44 @@ async def download_weather_data(
 
     # Validate coordinates
     if not (-90 <= latitude <= 90):
-        raise ValueError("Latitude must be between -90 and 90.")
+        warnings_list.append("Latitude must be between -90 and 90.")
+        logger.error(warnings_list[-1])
+        raise ValueError(warnings_list[-1])
     if not (-180 <= longitude <= 180):
-        raise ValueError("Longitude must be between -180 and 180.")
+        warnings_list.append("Longitude must be between -180 and 180.")
+        logger.error(warnings_list[-1])
+        raise ValueError(warnings_list[-1])
 
     # Validate dates
     try:
-        data_inicial_formatted = pd.to_datetime(data_inicial, format="%d/%m/%Y")
-        data_final_formatted = pd.to_datetime(data_final, format="%d/%m/%Y")
+        data_inicial_formatted = pd.to_datetime(data_inicial, format="%Y-%m-%d")
+        data_final_formatted = pd.to_datetime(data_final, format="%Y-%m-%d")
     except ValueError:
-        raise ValueError("Dates must be in 'dd/mm/yyyy' format.")
+        warnings_list.append("Dates must be in 'YYYY-MM-DD' format.")
+        logger.error(warnings_list[-1])
+        raise ValueError(warnings_list[-1])
 
     if data_final_formatted < data_inicial_formatted:
-        raise ValueError("End date must be after start date.")
+        warnings_list.append("End date must be after start date.")
+        logger.error(warnings_list[-1])
+        raise ValueError(warnings_list[-1])
 
     period_days = (data_final_formatted - data_inicial_formatted).days + 1
     if not (7 <= period_days <= 15):
-        raise ValueError("Period must be between 7 and 15 days.")
+        warnings_list.append("Period must be between 7 and 15 days.")
+        logger.error(warnings_list[-1])
+        raise ValueError(warnings_list[-1])
+
+    # Validate data source
+    valid_sources = ["nasa_power", "openmeteo_archive", "openmeteo_forecast", "Data Fusion"]
+    if data_source not in valid_sources:
+        warnings_list.append(f"Invalid data source: {data_source}. Use one of: {valid_sources}")
+        logger.error(warnings_list[-1])
+        raise ValueError(warnings_list[-1])
 
     # Define sources
     if data_source == "Data Fusion":
-        sources = ["NASA POWER", "Open-Meteo Archive", "Open-Meteo Forecast"]
+        sources = ["nasa_power", "openmeteo_archive", "openmeteo_forecast"]
         logger.info("Data Fusion selecionada, coletando dados de múltiplas fontes.")
     else:
         sources = [data_source]
@@ -81,68 +95,62 @@ async def download_weather_data(
         # Adjust end date for NASA POWER (no future data)
         data_final_adjusted = (
             min(data_final_formatted, current_date)
-            if source == "NASA POWER"
+            if source == "nasa_power"
             else data_final_formatted
         )
         if data_final_adjusted < data_final_formatted:
             warnings_list.append(
-                f"NASA POWER data truncated to {data_final_adjusted.strftime('%d/%m/%Y')} "
+                f"NASA POWER data truncated to {data_final_adjusted.strftime('%Y-%m-%d')} "
                 "as it does not provide future data."
             )
 
         # Download data
         try:
-            if source == "NASA POWER":
-                nasa_weather = NasaPowerAPI(
+            if source == "nasa_power":
+                api = NasaPowerAPI(
                     start=data_inicial_formatted,
                     end=data_final_adjusted,
                     long=longitude,
-                    lat=latitude,
-                    use_cache=True,
-                    matopiba_only=(mode == "MATOPIBA")  # Passar modo MATOPIBA
+                    lat=latitude
                 )
-                weather_df = await nasa_weather.get_weather()
+                weather_df, fetch_warnings = await api.get_weather()
+                warnings_list.extend(fetch_warnings)
                 logger.info(f"Downloaded data from NASA POWER for lat={latitude}, lng={longitude}")
 
-            elif source == "Open-Meteo Archive":
-                open_meteo = OpenMeteoArchiveAPI(
+            elif source == "openmeteo_archive":
+                api = OpenMeteoArchiveAPI(
                     start=data_inicial_formatted,
                     end=data_final_adjusted,
                     long=longitude,
-                    lat=latitude,
-                    use_cache=True,
+                    lat=latitude
                 )
-                weather_df, fetch_warnings = await open_meteo.get_weather()
+                weather_df, fetch_warnings = await api.get_weather()
                 warnings_list.extend(fetch_warnings)
                 logger.info(f"Downloaded data from Open-Meteo Archive for lat={latitude}, lng={longitude}")
 
-            elif source == "Open-Meteo Forecast":
-                open_meteo = OpenMeteoForecastAPI(
+            elif source == "openmeteo_forecast":
+                api = OpenMeteoForecastAPI(
                     start=data_inicial_formatted,
                     end=data_final_adjusted,
                     long=longitude,
-                    lat=latitude,
-                    use_cache=True,
+                    lat=latitude
                 )
-                weather_df, fetch_warnings = await open_meteo.get_weather()
+                weather_df, fetch_warnings = await api.get_weather()
                 warnings_list.extend(fetch_warnings)
                 logger.info(f"Downloaded data from Open-Meteo Forecast for lat={latitude}, lng={longitude}")
 
-            # Validate and process DataFrame
+            # Validate DataFrame
             if weather_df is None or weather_df.empty:
                 logger.warning(
-                    f"No data retrieved from {source} for {latitude}, {longitude} between {data_inicial} and {data_final}."
+                    f"No data retrieved from {source} for lat={latitude}, lng={longitude} "
+                    f"between {data_inicial} and {data_final}."
                 )
                 warnings_list.append(f"No data retrieved from {source}.")
                 continue
 
-            # Ensure date column
-            if "date" not in weather_df.columns:
-                weather_df = weather_df.reset_index().rename(columns={"index": "date"})
-
             # Standardize columns
             expected_columns = [
-                "date", "T2M_MAX", "T2M_MIN", "T2M", "RH2M", "WS2M",
+                "T2M_MAX", "T2M_MIN", "T2M", "RH2M", "WS2M",
                 "ALLSKY_SFC_SW_DWN", "PRECTOTCORR"
             ]
             for col in expected_columns:
@@ -152,10 +160,10 @@ async def download_weather_data(
             # Filter expected columns
             weather_df = weather_df[expected_columns]
             weather_df = weather_df.replace(-999.00, np.nan)
-            weather_df = weather_df.dropna(how="all", subset=weather_df.columns.difference(["date"]))
+            weather_df = weather_df.dropna(how="all", subset=weather_df.columns)
 
             # Check for missing data
-            returned_days = (weather_df["date"].max() - weather_df["date"].min()).days + 1
+            returned_days = (weather_df.index.max() - weather_df.index.min()).days + 1
             if returned_days < period_days:
                 warnings_list.append(
                     f"{source} returned only {returned_days} days of data (requested {period_days} days)."
@@ -191,27 +199,36 @@ async def download_weather_data(
     # Perform fusion if required
     if data_source == "Data Fusion":
         if len(dfs) < 2:
-            raise ValueError("At least two valid data sources are required for fusion.")
+            warnings_list.append("At least two valid data sources are required for fusion.")
+            logger.error(warnings_list[-1])
+            raise ValueError(warnings_list[-1])
         try:
-            from src.eto_calculator import data_fusion
-            weather_data = data_fusion(dfs)
+            task = data_fusion.delay([df.to_dict() for df in dfs])
+            weather_data_dict, fusion_warnings = task.get(timeout=10)
+            warnings_list.extend(fusion_warnings)
+            weather_data = pd.DataFrame(weather_data_dict)
             logger.info("Data fusion completed successfully.")
         except Exception as e:
-            logger.error(f"Error during data fusion: {str(e)}")
-            raise ValueError(f"Data fusion failed: {str(e)}")
+            warnings_list.append(f"Data fusion failed: {str(e)}")
+            logger.error(warnings_list[-1])
+            raise ValueError(warnings_list[-1])
     else:
         if not dfs:
-            raise ValueError("No valid data sources provided data.")
+            warnings_list.append("No valid data sources provided data.")
+            logger.error(warnings_list[-1])
+            raise ValueError(warnings_list[-1])
         weather_data = dfs[0]
 
     # Final validation
     expected_columns = [
-        "date", "T2M_MAX", "T2M_MIN", "T2M", "RH2M", "WS2M",
+        "T2M_MAX", "T2M_MIN", "T2M", "RH2M", "WS2M",
         "ALLSKY_SFC_SW_DWN", "PRECTOTCORR"
     ]
     missing_columns = [col for col in expected_columns if col not in weather_data.columns]
     if missing_columns:
-        raise ValueError(f"Missing required columns: {missing_columns}")
+        warnings_list.append(f"Missing required columns: {missing_columns}")
+        logger.error(warnings_list[-1])
+        raise ValueError(warnings_list[-1])
 
     logger.info(f"Final weather data:\n{weather_data.to_string()}")
     return weather_data, warnings_list

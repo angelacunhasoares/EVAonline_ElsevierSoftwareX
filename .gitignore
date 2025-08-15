@@ -9,13 +9,18 @@ __pycache__/
 __pycache__/
 *.pyc
 *.nc
+*.log
+*.db
 
 # Projeto EVAonline
 nasa_power_cache/
 openmeteo_cache/
-output/
-data/BRAZIL_SHAPEFILE/
-data/MATOPIBA_SHAPEFILE/
+data/FILE_CSV/
+data/FILE_GEOJSON/
+data/SHAPEFILE_CLIMA_BR/
 .vscode/ 
+logs/
+data/
+data/.cache/
 *.tmp
 *.bak

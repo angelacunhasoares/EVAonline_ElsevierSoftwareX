@@ -4,77 +4,85 @@ services:
   web:
     build:
       context: .
-      dockerfile: Dockerfile.web
-    command: python src/eto_dashboard.py
+      dockerfile: Dockerfile
+    command: gunicorn -b 0.0.0.0:8050 --workers 2 pages.main:app.server
     ports:
       - "8050:8050"
     depends_on:
-      - redis
-      - api
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
     environment:
       - REDIS_URL=redis://redis:6379/0
       - PYTHONUNBUFFERED=1
       - LANG=pt_BR.UTF-8
+      - SERVICE=web
     volumes:
-      - ./src:/app/src
+      - ./pages:/app/pages
       - ./assets:/app/assets
       - ./logs:/app/logs
+      - ./utils:/app/utils
+      - ./components:/app/components
+      - ./src:/app/src
 
   api:
     build:
       context: .
-      dockerfile: Dockerfile.api
-    command: uvicorn src.api:app --host 0.0.0.0 --port 8000
+      dockerfile: Dockerfile
+    command: uvicorn api.data_service:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment:
       - REDIS_URL=redis://redis:6379/0
       - PYTHONUNBUFFERED=1
-      - LANG=pt_BR.UTF-8
+      - SERVICE=api
     volumes:
-      - ./src:/app/src
+      - ./api:/app/api
       - ./logs:/app/logs
-
-  celery:
-    build:
-      context: .
-      dockerfile: Dockerfile.celery
-    command: celery -A src.eto_calculator worker --loglevel=info
-    depends_on:
-      - redis
-      - api
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - PYTHONUNBUFFERED=1
-      - LANG=pt_BR.UTF-8
-    volumes:
       - ./src:/app/src
-      - ./logs:/app/logs
 
   redis:
-    image: redis:latest
+    image: redis:6.2
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-  
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A api.celery_config worker --loglevel=info --concurrency=4
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONUNBUFFERED=1
+      - SERVICE=celery
+    volumes:
+      - ./api:/app/api
+      - ./logs:/app/logs
+      - ./src:/app/src
+
   prometheus:
     image: prom/prometheus:latest
     ports:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-    depends_on:
-      - api
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    depends_on:
-      - prometheus
 
 volumes:
   redis_data:
