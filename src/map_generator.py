@@ -1,21 +1,23 @@
-import logging
-from pathlib import Path
-import dash_leaflet as dl
-import geopandas as gpd
-import pandas as pd
+# frontend/src/maps.py
 import re
 from functools import lru_cache
-from utils.get_translations import get_translations
-import os
+from pathlib import Path
+from typing import Dict, Any
+import dash_leaflet as dl
+import dash_leaflet.express as dlx
+from dash import Dash
+import geopandas as gpd
+import pandas as pd
+from loguru import logger
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# O diretório base é definido de forma explícita.
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Configuração de diretório base
-BASE_DIR = Path(os.getenv("BASE_DIR", Path(__file__).parent.parent))
+app = Dash()
+app.layout = dl.Map(dl.TileLayer(), center=[56, 10], zoom=6, style={"height": "50vh"})
 
 
+# Funções de estilo para as camadas base
 def style_function_brasil(feature):
     return {"fillOpacity": 0, "color": "#505050", "weight": 1}
 
@@ -24,33 +26,8 @@ def style_function_matopiba(feature):
     return {"color": "#FF0000", "weight": 2.5, "fillOpacity": 0}
 
 
-@lru_cache(maxsize=1)
-def load_all_data():
-    """Carrega e processa todos os arquivos de dados necessários."""
-    logger.info("Iniciando carregamento de todos os dados...")
-    
-    try:
-        brasil_gdf = gpd.read_file(BASE_DIR / "data" / "FILE_GEOJSON" / "BR_UF_2024.geojson")
-        logger.info("BR_UF_2024.geojson carregado com sucesso")
-        matopiba_gdf = gpd.read_file(BASE_DIR / "data" / "FILE_GEOJSON" / "Matopiba_Perimetro.geojson")
-        logger.info("Matopiba_Perimetro.geojson carregado com sucesso")
-        clima_gdf = gpd.read_file(BASE_DIR / "data" / "SHAPEFILE_CLIMA_BR" / "clima_5000.shp")
-        logger.info("clima_5000.shp carregado com sucesso")
-
-        # Correção e alinhamento de CRS
-        clima_gdf.set_crs(epsg=4674, inplace=True, allow_override=True)
-        for gdf in [brasil_gdf, matopiba_gdf, clima_gdf]:
-            gdf.to_crs(epsg=4326, inplace=True)
-
-        logger.info("Todos os dados foram carregados e processados com sucesso.")
-        return brasil_gdf, matopiba_gdf, clima_gdf
-
-    except Exception as e:
-        logger.error(f"Erro ao carregar dados: {e}")
-        return None, None, None
-
-
 def normalize_text(text):
+    """Normaliza o texto para correspondência de chaves."""
     if not isinstance(text, str):
         return ""
     text = text.lower().replace("º", " ").replace("°", " ")
@@ -61,6 +38,7 @@ def normalize_text(text):
     return text
 
 
+# Dicionário de cores para cada tipo de clima
 color_map = {
     'Equatorial, quente - média > 18° C em todos os meses, super-úmido sem seca': '#6A339A', 
     'Equatorial, quente - média > 18° C em todos os meses, super-úmido subseca': '#A378B9', 
@@ -121,103 +99,171 @@ normalized_color_map = {normalize_text(k): v for k, v in color_map.items()}
 
 
 def get_color(desc):
-    if pd.isna(desc):
-        return "#808080"
-    return normalized_color_map.get(normalize_text(desc), "#E0E0E0")
+    if pd.isna(desc): return "#808080"  # Cor para dados nulos
+    return normalized_color_map.get(normalize_text(desc), "#E0E0E0")  # Cor padrão
 
 
 def style_function_clima(feature):
     return {"fillColor": get_color(feature["properties"]["DESC_COMPL"]), "color": "none", "weight": 0, "fillOpacity": 0.7}
 
+# --- FIM DA LÓGICA DE CLIMA ---
 
-def create_climate_base_map():
-    """Cria uma camada base com clima, estados e MATOPIBA."""
-    logger.info("Criando mapa base com clima...")
-    brasil_gdf, matopiba_gdf, clima_gdf = load_all_data()
+
+@lru_cache(maxsize=1)
+def load_all_data():
+    """Carrega e processa todos os arquivos de dados geoespaciais necessários."""
+    logger.info("Iniciando carregamento de dados geoespaciais (cacheado)...")
+    try:
+        brasil_gdf = gpd.read_file(BASE_DIR / "data" / "FILE_GEOJSON" / "BR_UF_2024.geojson")
+        matopiba_gdf = gpd.read_file(BASE_DIR / "data" / "FILE_GEOJSON" / "Matopiba_Perimetro.geojson")
+        clima_gdf = gpd.read_file(BASE_DIR / "data" / "SHAPEFILE_CLIMA_BR" / "clima_5000.shp")
+        cities_df = pd.read_csv(BASE_DIR / "data" / "FILE_CSV" / "CITIES_MATOPIBA_337.csv", sep=",")
+        
+        clima_gdf.set_crs(epsg=4674, inplace=True, allow_override=True)
+        for gdf in [brasil_gdf, matopiba_gdf, clima_gdf]:
+            gdf.to_crs(epsg=4326, inplace=True)
+        
+        logger.info("Dados geoespaciais carregados e processados com sucesso.")
+        return brasil_gdf, matopiba_gdf, clima_gdf, cities_df
+    except Exception as e:
+        logger.error(f"Erro ao carregar dados geoespaciais: {e}")
+        return None, None, None, None
+
+
+def create_base_map_layers(t: Dict[str, str]):
+    """Cria as camadas base (clima, estados e contorno do MATOPIBA)."""
+    brasil_gdf, matopiba_gdf, clima_gdf, _ = load_all_data()
     
     if any(x is None for x in [brasil_gdf, matopiba_gdf, clima_gdf]):
-        logger.error("Falha ao carregar GeoDataFrames.")
-        return dl.LayerGroup()
+        logger.error("Falha ao carregar GeoDataFrames para o mapa base.")
+        return []
 
-    t = get_translations()
-    layers = []
-    if clima_gdf is not None:
-        layers.append(
-            dl.GeoJSON(
-                data=clima_gdf.__geo_interface__,
-                id="clima-brasil",
-                style=style_function_clima,
-                hoverStyle={"fillOpacity": 0.9},
-                options={"name": t["climate_brasil"]}
-            )
+    layers = [
+        dl.GeoJSON(
+            data=clima_gdf.__geo_interface__,
+            id="clima-brasil",
+            style=style_function_clima,
+            hoverStyle={"fillOpacity": 0.9},
+            options={"name": t.get("climate_brasil", "Brazil Climate")}
+        ),
+        dl.GeoJSON(
+            data=brasil_gdf.__geo_interface__,
+            id="limites-estaduais",
+            style=style_function_brasil,
+            options={"name": t.get("state_borders", "State Borders")}
+        ),
+        dl.GeoJSON(
+            data=matopiba_gdf.__geo_interface__,
+            id="contorno-matopiba",
+            style=style_function_matopiba,
+            options={"name": t.get("matopiba_contour", "MATOPIBA Contour")}
         )
-    if brasil_gdf is not None:
-        layers.append(
-            dl.GeoJSON(
-                data=brasil_gdf.__geo_interface__,
-                id="limites-estaduais",
-                style=style_function_brasil,
-                options={"name": t["state_borders"], "show": False}
-            )
-        )
-    if matopiba_gdf is not None:
-        layers.append(
-            dl.GeoJSON(
-                data=matopiba_gdf.__geo_interface__,
-                id="contorno-matopiba",
-                style=style_function_matopiba,
-                options={"name": t["matopiba_contour"]}
-            )
-        )
-    return dl.LayerGroup(layers, id="base-layers")
+    ]
+    return layers
 
 
-def map_all_cities():
+def map_all_cities(t: Dict[str, str], heatmap_points=None):
+    """Gera o mapa de todas as cidades do MATOPIBA com mapa de calor."""
     logger.info("Gerando mapa de todas as cidades do MATOPIBA")
-    t = get_translations()
-    base_layers = create_climate_base_map()
-    cities_df = pd.read_csv(BASE_DIR / "data" / "FILE_CSV" / "CITIES_MATOPIBA_337.csv", sep=",")
+    
+    base_layers = create_base_map_layers(t)
+    _, _, _, cities_df = load_all_data()
 
-    markers = [
-        dl.Marker(
-            position=[row["LATITUDE"], row["LONGITUDE"]],
-            children=[
-                dl.Tooltip(row.get("CITY", "Desconhecido")),
-                dl.Popup(f"{t['map_popup_city']}: {row.get('CITY', 'Desconhecido')} ({row.get('UF', 'N/A')})<br>{t['map_popup_coordinates']}: ({row['LATITUDE']:.6f}, {row['LONGITUDE']:.6f})")
-            ],
-            icon={"icon": "fa-map-marker", "iconColor": "purple"}
-        ) for _, row in cities_df.iterrows() if not (pd.isna(row["LATITUDE"]) or pd.isna(row["LONGITUDE"]))
+    # Gera pontos para o mapa de calor usando círculos (dash_leaflet não tem HeatMap)
+    heatmap_points = heatmap_points if heatmap_points else [
+        [row["LATITUDE"], row["LONGITUDE"], 1]  # Intensidade fixa de 1 por agora
+        for _, row in cities_df.iterrows()
+        if pd.notna(row["LATITUDE"]) and pd.notna(row["LONGITUDE"])
     ]
-    return dl.LayerGroup([base_layers, dl.LayerGroup(markers, id="cities-cluster")], id="map-all-cities")
+    city_markers = [
+        dl.CircleMarker(
+            center=[lat, lon],
+            radius=5,
+            color="red",
+            fillColor="red",
+            fillOpacity=0.6
+        ) 
+        for lat, lon, _ in heatmap_points
+    ]
+    heatmap_layer = dl.LayerGroup(city_markers, id="heatmap")
+
+    map_obj = dl.LayerGroup(base_layers + [heatmap_layer])
+    center = [-10, -55]
+    zoom = 4
+    map_desc = t.get("map_desc_matopiba", "Mapa ETo MATOPIBA")
+    legend_html = f"""
+    <div class="map-legend">
+        <b>{t.get('legend', 'Legend')}</b><br>
+        <span style="background: linear-gradient(to right, blue, green, yellow, orange, red); padding: 5px;">&nbsp;</span> {t.get('legend_heatmap', 'City Density')}<br>
+        <span style="color: red; font-size: 16px;">━</span> {t.get('perimeter', 'Perimeter')}<br>
+        <b>{t.get('source', 'Source')}:</b> {t.get('map_source_all_cities', 'MATOPIBA Data')}
+    </div>
+    """
+    return map_obj, center, zoom, map_desc, legend_html
 
 
-def map_piracicaba_city():
+def map_piracicaba_city(t: Dict[str, str], heatmap_points=None):
+    """Gera o mapa da cidade de Piracicaba com mapa de calor."""
     logger.info("Gerando mapa da cidade de Piracicaba")
-    t = get_translations()
-    base_layers = create_climate_base_map()
-    cities_df = pd.read_csv(BASE_DIR / "data" / "FILE_CSV" / "CITY_PIRACICABA_SP.csv", sep=",", encoding="utf-8")
-
-    markers = [
-        dl.Marker(
-            position=[row["LATITUDE"], row["LONGITUDE"]],
-            children=[
-                dl.Tooltip("Piracicaba"),
-                dl.Popup(f"{t['map_popup_city']}: {row.get('CITY', 'Piracicaba')} ({row.get('UF', 'SP')})<br>{t['map_popup_coordinates']}: ({row['LATITUDE']:.6f}, {row['LONGITUDE']:.6f})<br>{t['map_popup_note']}: Developed EVAonline here!")
-            ],
-            icon={"icon": "fa-info-sign", "iconColor": "green"}
-        ) for _, row in cities_df.iterrows() if not (pd.isna(row["LATITUDE"]) or pd.isna(row["LONGITUDE"]))
+    
+    base_layers = create_base_map_layers(t)
+    _, _, _, cities_df = load_all_data()
+    piracicaba_data = cities_df[cities_df['CITY'].str.contains('Piracicaba', case=False, na=False)]
+    heatmap_points = heatmap_points if heatmap_points else [
+        [row["LATITUDE"], row["LONGITUDE"], 1]
+        for _, row in piracicaba_data.iterrows()
+        if pd.notna(row["LATITUDE"]) and pd.notna(row["LONGITUDE"])
     ]
-    return dl.LayerGroup([base_layers, dl.LayerGroup(markers)], id="map-piracicaba")
+    city_markers = [
+        dl.CircleMarker(
+            center=[lat, lon],
+            radius=3,  # Menor raio para detalhe em escala local
+            color="red",
+            fillColor="red",
+            fillOpacity=0.8
+        ) 
+        for lat, lon, _ in heatmap_points
+    ]
+    heatmap_layer = dl.LayerGroup(city_markers, id="heatmap")
 
+    map_obj = dl.LayerGroup(base_layers + [heatmap_layer])
+    center = [-22.725, -47.649]
+    zoom = 10
+    map_desc = t.get("map_desc_piracicaba", "Piracicaba, SP Brasil")
+    legend_html = f"""
+    <div class="map-legend">
+        <b>{t.get('legend', 'Legend')}</b><br>
+        <span style="background: linear-gradient(to right, blue, green, yellow, orange, red); padding: 5px;">&nbsp;</span> {t.get('legend_heatmap', 'City Density')}<br>
+        <span style="color: red; font-size: 16px;">━</span> {t.get('legend_map2_perimeter', 'City Perimeter')}<br>
+        <b>{t.get('source', 'Source')}:</b> IBGE (Perimeter)
+    </div>
+    """
+    return map_obj, center, zoom, map_desc, legend_html
 
-def create_interactive_map():
+def create_interactive_map(t: Dict[str, str], heatmap_points=None):
+    """Gera o mapa global interativo para seleção de coordenadas."""
     logger.info("Gerando mapa global interativo")
-    t = get_translations()
-    return dl.LayerGroup([
-        dl.TileLayer(url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"),
-        dl.Marker(
-            position=[0, 0],
-            children=[dl.Tooltip(t["click_to_select"])],
-            icon={"icon": "fa-globe", "iconColor": "blue"}
-        )
-    ], id="interactive-layer")
+    
+    base_layers = create_base_map_layers(t)
+    heatmap_points = heatmap_points if heatmap_points else []  # Sem pontos iniciais para foco em interação
+
+    heatmap_layer = dl.HeatMap(
+        id="heatmap",
+        points=heatmap_points,
+        radius=25,
+        blur=15,
+        gradient={0.2: "blue", 0.4: "green", 0.6: "yellow", 0.8: "orange", 1.0: "red"}
+    )
+
+    map_obj = dl.LayerGroup(base_layers + [heatmap_layer])
+    center = [-15, -47]  # Centro aproximado do Brasil
+    zoom = 4
+    map_desc = t.get("map_desc_global", "Mapa Global")
+    legend_html = f"""
+    <div class="map-legend">
+        <b>{t.get('legend', 'Legend')}</b><br>
+        <span style="background: linear-gradient(to right, blue, green, yellow, orange, red); padding: 5px;">&nbsp;</span> {t.get('legend_heatmap', 'City Density')}<br>
+        <i class="fa fa-globe" style="color: blue;"></i> {t.get('legend_map4_global', 'Interactive Global Map')}<br>
+    </div>
+    """
+    return map_obj, center, zoom, map_desc, legend_html

@@ -1,215 +1,139 @@
-import dash
+"""
+# frontend/
+# Este módulo implementa a página principal do aplicativo EVAonline, com:
+- Seleção interativa de mapas e visualização com interface em abas
+- Inglês como idioma padrão com opção de mudar para Português
+- Três mapas diferentes: Mapa Mundial, Mapa das Cidades MATOPIBA e Mapa da Cidade de Piracicaba
+- Navegação para outras seções do aplicativo.
+
+A página serve como ponto de entrada para os usuários selecionarem locais e iniciarem
+cálculos de ETo (evapotranspiração de referência).
+"""
+
+from dash import Dash, html, dcc
 import dash_bootstrap_components as dbc
-import dash_leaflet as dl
-from dash import dcc, html
-from dash.dependencies import Input, Output, State
-import pandas as pd
-import requests
-from loguru import logger
-from prometheus_client import Counter, generate_latest
-from flask import Response
-import json
-from redis import Redis
-from components.navbar import render_navbar
-from components.footer import render_footer
-from utils.language_manager import init_language
-from utils.get_translations import get_translations  # Atualizado
-from src.map_generator import create_interactive_map, map_all_cities, map_piracicaba_city
-from utils.logging import configure_logging
+from prometheus_flask_exporter import PrometheusMetrics
+from dash_extensions import WebSocket
+from src import map_generator (create_interactive_map, map_all_cities, map_piracicaba_city)  # Importa as funções de mapas
 
-configure_logging()
-app = dash.Dash(
-    __name__,
-    external_stylesheets=[dbc.themes.BOOTSTRAP, "/assets/fontawesome.css", "/assets/styles.css"],
-    suppress_callback_exceptions=True
-)
+# Configuração do Dash
+app = Dash(__name__, external_stylesheets=[{"href": "assets/styles.css", "rel": "stylesheet"}])
+app.title = "EVAonline"
+metrics = PrometheusMetrics(app.server)
 
-# Métrica do Prometheus
-REQUESTS_DASH = Counter('evaonline_dash_requests_total', 'Total Dash Requests')
-
-@app.server.route("/metrics")
-def metrics():
-    REQUESTS_DASH.inc()
-    return Response(generate_latest(), mimetype="text/plain")
-
-# Inicializar Redis
-redis_client = Redis.from_url("redis://redis:6379/0")
-
-# Cachear traduções
-def get_translations(lang: str = "pt"):
-    cache_key = f"translations:{lang}"
-    try:
-        cached = redis_client.get(cache_key)
-        if cached:
-            logger.info(f"Traduções carregadas do Redis para o idioma {lang}")
-            return json.loads(cached)
-        t = get_translations(lang)
-        redis_client.setex(cache_key, 3600, json.dumps(t))
-        logger.info(f"Traduções salvas no Redis para o idioma {lang}")
-        return t
-    except Exception as e:
-        logger.error(f"Erro ao acessar traduções no Redis: {str(e)}")
-        return get_translations(lang)  # Fallback para traduções locais
-
-# Inicializar traduções
-t = init_language(app)
-
-app.layout = dbc.Container([
-    render_navbar(t),
-    dcc.Location(id="url"),
-    html.Div(id="page-content"),
-    dcc.Store(id="selected-map", data=t["map_options"][0]),
-    dcc.Store(id="selected-coordinates"),
-    render_footer()
+# Layout da página inicial com tabs DBC e GIF
+app.layout = html.Div([
+    # Cabeçalho com GIF
+    html.Header(
+        style={
+            "backgroundImage": "url('https://media.giphy.com/media/3o7TKTDnHRnS1uXHMk/giphy.gif')",  # Exemplo de GIF (substitua por seu GIF)
+            "backgroundSize": "cover",
+            "backgroundPosition": "center",
+            "height": "200px",
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "color": "white",
+            "textShadow": "2px 2px 4px rgba(0, 0, 0, 0.7)"
+        },
+        children=[
+            html.Div([
+                html.H1("MATOPIBADash", style={"margin": "0"}),
+                html.H4("Online Tool for MATOPIBA Climate and City Analysis", style={"margin": "0"})
+            ])
+        ]
+    ),
+    # Menu de Navegação com Tabs DBC
+    dbc.NavbarSimple(
+        children=[
+            dbc.NavItem(dbc.NavLink("Mapa Global", href="#", id="tab-global")),
+            dbc.NavItem(dbc.NavLink("Mapa ETo MATOPIBA", href="#", id="tab-matopiba")),
+            dbc.NavItem(dbc.NavLink("Piracicaba, SP Brasil", href="#", id="tab-piracicaba")),
+            dbc.NavItem(dbc.Button("ENGLISH", id="language-toggle", color="primary", outline=True, className="ms-auto"))
+        ],
+        brand="",
+        color="light",
+        dark=False,
+        expand="lg"
+    ),
+    # Corpo Principal com Tabs
+    dbc.Tabs(
+        id="tabs",
+        active_tab="tab-global",
+        children=[
+            dbc.Tab(label="Mapa Global", tab_id="tab-global"),
+            dbc.Tab(label="Mapa ETo MATOPIBA", tab_id="tab-matopiba"),
+            dbc.Tab(label="Piracicaba, SP Brasil", tab_id="tab-piracicaba")
+        ]
+    ),
+    html.Div(id="tab-content", className="p-4"),
+    # Instruções
+    html.P("Interactive Map: Click to capture coordinates and analyze climate data", className="text-center", style={"marginTop": "10px"}),
+    # Rodapé
+    html.Footer(
+        className="bg-light text-center py-3 mt-4",
+        children=[
+            html.P("© 2025 MATOPIBADash Project | Powered by Leaflet, OpenStreetMap, and CARTO")
+        ]
+    ),
+    # Componente WebSocket
+    WebSocket(id="ws", url="ws://fastapi:8000/ws_geo_data"),  # Ajustado para evitar conflito
+    # Armazenar estado do mapa
+    dcc.Store(id="map-state", data={"map_type": "global"})
 ])
 
+# Callback para atualizar o conteúdo dos tabs
 @app.callback(
-    Output("page-content", "children"),
-    Input("url", "pathname"),
-    Input("language-store", "data")
+    [dash.dependencies.Output("tab-content", "children"),
+     dash.dependencies.Output("map-state", "data")],
+    [dash.dependencies.Input("tabs", "active_tab"),
+     dash.dependencies.Input("ws", "message")]
 )
-def display_page(pathname, lang):
-    t = get_translations(lang)
-    if pathname == "/about":
-        from pages.about import layout
-        return layout
-    if pathname == "/eto":
-        from pages.eto_dashboard import create_layout
-        return create_layout(lang=lang)
-    return html.Div([
-        html.H5(t["choose_map"], style={"color": "#012D5A", "margin-bottom": "3px"}),
-        dcc.RadioItems(
-            id="map-radio",
-            options=[{"label": opt, "value": opt} for opt in t["map_options"]],
-            value=t["map_options"][0],
-            labelStyle={"display": "block"}
-        ),
-        html.Div(id="map-container"),
-        html.P(id="map-desc"),
-        html.Div(id="legend"),
-        html.P(id="coords-output"),
-        dbc.Button(f"🌦️ {t['calculate_eto']}", id="calculate-eto-button", color="primary", disabled=True),
-        html.Div(id="alert-container")
-    ])
-
-@app.callback(
-    Output("selected-map", "data"),
-    Input("map-radio", "value")
-)
-def update_map_selection(selected_map):
-    t = get_translations()  # Usa idioma padrão
-    if selected_map not in t["map_options"]:
-        logger.warning(f"Mapa selecionado inválido: {selected_map}")
-        return t["map_options"][0]
-    return selected_map
-
-@app.callback(
-    Output("map-container", "children"),
-    Output("map-desc", "children"),
-    Output("legend", "children"),
-    Input("selected-map", "data"),
-    State("language-store", "data")
-)
-def render_map(selected_map, lang):
-    t = get_translations(lang)
-    logger.info(f"Renderizando mapa: {selected_map}")
-    if not selected_map:
-        return html.P(t["no_map_selected"], className="text-danger text-center"), "", ""
-    
-    if selected_map == t["map_options"][0]:
-        map_obj = map_all_cities()
-        map_desc = t["map_desc_interactive"]
-        legend_html = f"""
-        <div class="map-legend">
-            <b>{t['legend']}</b><br>
-            <i class="fa fa-map-marker" style="color: purple; font-size: 16px;"></i> {t['legend_map1_cities']} <strong>{t['legend_map1_zoom']}</strong><br>
-            <span style="color: red; font-size: 16px;">━</span> {t['perimeter']}<br>
-            <b>{t['source']}:</b> {t['map_source_all_cities']}
-        </div>
-        """
+def update_tab_content(active_tab, message):
+    if active_tab == "tab-matopiba":
+        map_type = "matopiba"
         center = [-10, -55]
         zoom = 4
-    elif selected_map == t["map_options"][1]:
-        map_obj = map_piracicaba_city()
-        map_desc = t["map2_desc"]
-        legend_html = f"""
-        <div class="map-legend">
-            <b>{t['legend']}</b><br>
-            <i class="fa fa-map-marker" style="color: green; font-size: 16px;"></i> {t['legend_map2_city']}<br>
-            <span style="color: red; font-size: 16px;">━</span> {t['legend_map2_perimeter']}<br>
-            <strong>{t['source']}:</strong> IBGE (Perímetro)
-        </div>
-        """
+    elif active_tab == "tab-piracicaba":
+        map_type = "piracicaba"
         center = [-22.725, -47.649]
         zoom = 10
-    else:
-        map_obj = create_interactive_map()
-        map_desc = t["map_desc_interactive"]
-        legend_html = f"""
-        <div class="map-legend" style="padding: 10px; background-color: white; border: 2px solid black; border-radius: 5px;">
-            <b>{t['legend']}</b><br>
-            <i class="fa fa-globe" style="color: blue; font-size: 16px;"></i> {t['legend_map4_global']}<br>
-        </div>
-        """
+    else:  # tab-global
+        map_type = "global"
         center = [0, 0]
-        zoom = 1
+        zoom = 2
+    
+    heatmap_points = [[point["lat"], point["lon"], point.get("intensity", 1)] for point in (message.get("data", []) if message else [])]
+    map_obj, _, _, map_desc, legend_html = maps.map_all_cities(t, map_type=map_type, heatmap_points=heatmap_points)
+    
+    return [
+        html.Div([
+            dl.Map(
+                id="map",
+                children=[
+                    dl.TileLayer(url="http://nginx:80/tiles/{z}/{x}/{y}.png"),
+                    dl.LayerGroup(id="map-layers", children=[map_obj])
+                ],
+                center=center,
+                zoom=zoom,
+                style={'width': '100%', 'height': '600px'}
+            ),
+            html.Div(className="col-md-3", children=[
+                html.Div(legend_html, className="card", style={"padding": "15px"}, dangerously_set_inner_html="")
+            ], style={"position": "absolute", "right": "10px", "top": "250px", "width": "250px"})
+        ]),
+        {"map_type": map_type}
+    ], prevent_initial_call=True
 
-    return dl.Map(
-        [dl.TileLayer(url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"), map_obj],
-        id="map",
-        center=center,
-        zoom=zoom,
-        style={"width": "100%", "height": "50vh"}
-    ), map_desc, html.Div(legend_html, className="map-legend")
-
+# Callback para alternar idioma (simplificado)
 @app.callback(
-    Output("coords-output", "children"),
-    Output("selected-coordinates", "data"),
-    Input("map", "click_lat_lng"),
-    State("selected-map", "data"),
-    State("language-store", "data")
+    dash.dependencies.Output("language-toggle", "children"),
+    [dash.dependencies.Input("language-toggle", "n_clicks")]
 )
-def capture_coordinates(click_lat_lng, selected_map, lang):
-    t = get_translations(lang)
-    if selected_map == t["map_options"][2] and click_lat_lng:
-        lat, lng = click_lat_lng
-        try:
-            response = requests.get(f"http://api:8000/get_elevation?lat={lat}&lng={lng}")
-            data = response.json()
-            if "error" in data:
-                logger.error(f"Erro ao obter elevação: {data['error']}")
-                return f"{t['error_elevation']}: {data['error']}", None
-            elev = data.get("elevation", 100)
-            warnings = data.get("warnings", [])
-            for w in warnings:
-                logger.warning(w)
-            logger.info(f"Coordenadas capturadas: lat={lat}, lng={lng}, elev={elev}")
-            return f"{t['coords_captured']}: Latitude: {lat:.6f}, Longitude: {lng:.6f}, {t['elevation']}: {elev}m", {"lat": lat, "lng": lng, "elev": elev}
-        except Exception as e:
-            logger.error(f"Erro na requisição de elevação: {str(e)}")
-            return f"{t['error_elevation']}: {str(e)}", None
-    return "", None
+def toggle_language(n_clicks):
+    if n_clicks and n_clicks % 2 == 1:
+        return "PORTUGUÊS"
+    return "ENGLISH"
 
-@app.callback(
-    Output("url", "pathname"),
-    Output("alert-container", "children"),
-    Input("calculate-eto-button", "n_clicks"),
-    State("selected-coordinates", "data")
-)
-def navigate_to_eto(n_clicks, coords):
-    t = get_translations()  # Usa idioma padrão
-    if n_clicks and coords:
-        return "/eto", None
-    elif n_clicks:
-        return dash.no_update, dbc.Alert(t["no_coords_selected"], color="danger")
-    return dash.no_update, None
-
-@app.callback(
-    Output("calculate-eto-button", "disabled"),
-    Input("selected-coordinates", "data")
-)
-def toggle_button(coords):
-    return not bool(coords)
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run_server(debug=True, port=8050)

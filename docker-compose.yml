@@ -1,88 +1,224 @@
 version: '3.8'
 
 services:
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: gunicorn -b 0.0.0.0:8050 --workers 2 pages.main:app.server
+  # Nginx como proxy reverso e cache de tiles
+  nginx:
+    image: nginx:alpine
+    container_name: evaonline-nginx
     ports:
-      - "8050:8050"
-    depends_on:
-      redis:
-        condition: service_healthy
-      api:
-        condition: service_started
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - PYTHONUNBUFFERED=1
-      - LANG=pt_BR.UTF-8
-      - SERVICE=web
+      - "80:80"
+      - "443:443"
     volumes:
-      - ./pages:/app/pages
-      - ./assets:/app/assets
-      - ./logs:/app/logs
-      - ./utils:/app/utils
-      - ./components:/app/components
-      - ./src:/app/src
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./nginx/certs:/etc/nginx/certs
+      - ./nginx/cache:/var/cache/nginx
+    depends_on:
+      - app
+      - api
+    restart: unless-stopped
 
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: uvicorn api.data_service:app --host 0.0.0.0 --port 8000
+  # PostgreSQL com PostGIS para dados geoespaciais
+  postgres:
+    image: postgis/postgis:14-3.2-alpine
+    container_name: evaonline-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-evaonline}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evaonline}
+      POSTGRES_DB: ${POSTGRES_DB:-evaonline}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
     ports:
-      - "8000:8000"
-    depends_on:
-      redis:
-        condition: service_healthy
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - PYTHONUNBUFFERED=1
-      - SERVICE=api
-    volumes:
-      - ./api:/app/api
-      - ./logs:/app/logs
-      - ./src:/app/src
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evaonline}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Redis para cache e message broker
   redis:
-    image: redis:6.2
+    image: redis:alpine
+    container_name: evaonline-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-evaonline}
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
 
-  celery:
+  # API REST e WebSocket (FastAPI)
+  api:
     build:
       context: .
-      dockerfile: Dockerfile
-    command: celery -A api.celery_config worker --loglevel=info --concurrency=4
-    depends_on:
-      redis:
-        condition: service_healthy
-      api:
-        condition: service_started
+      dockerfile: api/Dockerfile
+    container_name: evaonline-api
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - PYTHONUNBUFFERED=1
-      - SERVICE=celery
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-evaonline}:${POSTGRES_PASSWORD:-evaonline}@postgres:5432/${POSTGRES_DB:-evaonline}
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-evaonline}
+      - TZ=UTC
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-evaonline}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-evaonline}
+      - POSTGRES_DB=${POSTGRES_DB:-evaonline}
+      - SERVICE=api
     volumes:
       - ./api:/app/api
+      - ./scripts:/app/scripts
+      - ./models.py:/app/models.py
       - ./logs:/app/logs
-      - ./src:/app/src
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
+  # Worker Celery para processamento assíncrono
+  celery-worker:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: evaonline-celery-worker
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-evaonline}:${POSTGRES_PASSWORD:-evaonline}@postgres:5432/${POSTGRES_DB:-evaonline}
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-evaonline}
+      - TZ=UTC
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-evaonline}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-evaonline}
+      - POSTGRES_DB=${POSTGRES_DB:-evaonline}
+      - SERVICE=worker
+    volumes:
+      - ./api:/app/api
+      - ./scripts:/app/scripts
+      - ./models.py:/app/models.py
+      - ./logs:/app/logs
+    depends_on:
+      - api
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  # Celery Beat para tarefas agendadas
+  celery-beat:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: evaonline-celery-beat
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-evaonline}:${POSTGRES_PASSWORD:-evaonline}@postgres:5432/${POSTGRES_DB:-evaonline}
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-evaonline}
+      - TZ=UTC
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-evaonline}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-evaonline}
+      - POSTGRES_DB=${POSTGRES_DB:-evaonline}
+      - SERVICE=beat
+    volumes:
+      - ./api:/app/api
+      - ./scripts:/app/scripts
+      - ./models.py:/app/models.py
+      - ./logs:/app/logs
+    depends_on:
+      - celery-worker
+    restart: unless-stopped
+    
+  # Flower para monitoramento do Celery
+  flower:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: evaonline-flower
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-evaonline}
+      - SERVICE=flower
+    ports:
+      - "5555:5555"
+    volumes:
+      - ./api:/app/api
+    depends_on:
+      - celery-worker
+    restart: unless-stopped
+
+  # Prometheus para métricas
   prometheus:
     image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
+    container_name: evaonline-prometheus
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
+
+  # Grafana para visualização de métricas
+  grafana:
+    image: grafana/grafana:latest
+    container_name: evaonline-grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # cAdvisor para monitoramento de contêineres
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: evaonline-cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  # PgAdmin para administração do PostgreSQL
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: evaonline-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@evaonline.org
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    restart: unless-stopped
 
 volumes:
+  postgres_data:
   redis_data:
+  prometheus_data:
+  grafana_data:

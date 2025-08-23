@@ -1,32 +1,50 @@
-# utils/page_layout.py
-import streamlit as st
+"""
+Componente de barra de navegação para o aplicativo EVAOnline.
+"""
+import dash_bootstrap_components as dbc
+from dash import html
 
 
-def set_page_class(class_name):
-    st.markdown(
-        f"""
-        <script>
-            document.querySelector('.stApp').classList.add('{class_name}');
-        </script>
-        """,
-        unsafe_allow_html=True,
+def render_navbar_bootswatch(translations: dict,
+                             current_lang: str = 'en') -> dbc.NavbarSimple:
+    """
+    Cria uma barra de navegação responsiva com menu de idiomas.
+    
+    Args:
+        translations (dict): Dicionário com as traduções
+        current_lang (str): Código do idioma atual (en/pt)
+    
+    Returns:
+        dbc.NavbarSimple: Componente da barra de navegação
+    """
+    nav_items = [
+        dbc.NavItem(dbc.NavLink(translations["home"], href="/")),
+        dbc.NavItem(dbc.NavLink("ETo Dashboard", href="/eto")),
+        dbc.NavItem(dbc.NavLink(translations["about"], href="/about")),
+    ]
+    
+    language_menu = dbc.DropdownMenu(
+        children=[
+            dbc.DropdownMenuItem(
+                "English",
+                id={'type': 'lang-select', 'lang': 'en'}
+            ),
+            dbc.DropdownMenuItem(
+                "Português",
+                id={'type': 'lang-select', 'lang': 'pt'}
+            ),
+        ],
+        nav=True,
+        in_navbar=True,
+        label=current_lang.upper(),
     )
-
-
-def render_banner():
-
-    gif_base64_url = st.session_state.get(
-        "gif_base64_url"
-    )  # Assumindo que foi carregado
-    st.markdown(
-        f"""
-        <div class="banner-container">
-            <img src="{gif_base64_url}" class="banner-image" alt="Weather Animation">
-            <div class="banner-text">
-                <h1 class="evaonline-title"> 🌦️ EVAonline </h1>
-                <h2 class="evaonline-subtitle"> Online Tool to Estimate EVApotranspiration </h2>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    
+    # Adicionar o menu de idiomas diretamente na lista de children
+    return dbc.NavbarSimple(
+        children=nav_items + [language_menu],
+        brand="EVAOnline",
+        brand_href="/",
+        color="primary",
+        dark=True,
+        className="mb-4",
     )

@@ -1,26 +1,38 @@
+# celery_config.py
+# Configuração do Celery para EVAonline
+
 from celery import Celery
+from kombu import Queue
+import os
 
-# Configure Celery
-app = Celery(
-    "eto_app",
-    broker="redis://redis:6379/0",
-    backend="redis://redis:6379/0",
-    include=[
-        "src.data_download",
-        "src.data_fusion",
-        "src.data_preprocessing",
-        "api.openmeteo",
-        "api.nasapower",
-    ]
-)
+# Configuração do Redis como broker
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 
-# Configure Celery settings
+# Criar instância do Celery
+app = Celery('eva_online')
+
+# Configurações
 app.conf.update(
-    task_serializer="pickle",
-    accept_content=["pickle", "json"],
-    result_serializer="pickle",
-    task_track_started=True,
-    task_time_limit=3600,  # 1 hour timeout
-    task_soft_time_limit=3300,  # 55 minutes soft timeout
-    broker_connection_retry_on_startup=True,
+    broker_url=REDIS_URL,
+    result_backend=REDIS_URL,
+    task_serializer='json',
+    accept_content=['json'],
+    result_serializer='json',
+    timezone='America/Sao_Paulo',
+    enable_utc=True,
+    task_routes={
+        'src.eto_calculator.*': {'queue': 'eto_processing'},
+        'src.data_download.*': {'queue': 'data_download'},
+        'src.data_fusion.*': {'queue': 'data_processing'},
+        'api.openmeteo.*': {'queue': 'elevation'},
+        'utils.data_utils.*': {'queue': 'general'},
+    },
+    task_default_queue='general',
+    task_queues=(
+        Queue('general'),
+        Queue('eto_processing'),
+        Queue('data_download'),
+        Queue('data_processing'),
+        Queue('elevation'),
+    ),
 )

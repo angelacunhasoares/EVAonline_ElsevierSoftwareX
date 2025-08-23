@@ -1,75 +1,129 @@
+"""
+Módulo para cálculo da Evapotranspiração de Referência (ETo) usando o método FAO-56 Penman-Monteith.
+
+Este módulo implementa:
+- Cálculo de ETo seguindo a metodologia FAO
+- Pipeline completo de processamento de dados
+- Integração com diferentes fontes de dados
+- Suporte ao modo MATOPIBA
+"""
+
 import numpy as np
 import pandas as pd
-from celery import Celery
+from typing import Tuple, Optional, Dict, Any, List, Union
 from loguru import logger
-from datetime import datetime
+from datetime import datetime, timedelta
 from src.data_preprocessing import preprocessing
 from src.data_download import download_weather_data
 from src.data_fusion import data_fusion
 
 # Configuração do logging
-logger.add("./logs/app.log", rotation="10 MB", retention="10 days", level="INFO")
-logger.info("Iniciando cálculo de ET₀...")
+logger.add(
+    "./logs/eto_calculator.log",
+    rotation="10 MB",
+    retention="10 days",
+    level="INFO",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
+)
 
-# Configuração do Celery
-app = Celery("processing", broker="redis://redis:6379/0", backend="redis://redis:6379/0")
+# Importar instância do Celery já configurada
+from api.celery_config import app
 
-def calculate_eto(weather_df: pd.DataFrame, elevation: float, latitude: float) -> tuple[pd.DataFrame, list]:
+# Constantes
+MATOPIBA_BOUNDS = {
+    'lat_min': -14.5,
+    'lat_max': -2.5,
+    'lng_min': -50.0,
+    'lng_max': -41.5
+}
+
+def calculate_eto(
+    weather_df: pd.DataFrame, 
+    elevation: float, 
+    latitude: float
+) -> Tuple[pd.DataFrame, List[str]]:
     """
     Calcula a evapotranspiração de referência (ETo) usando o método FAO-56 Penman-Monteith.
 
     Args:
-        weather_df (pd.DataFrame): DataFrame com dados climáticos.
-        elevation (float): Elevação em metros.
-        latitude (float): Latitude em graus (-90 a 90).
+        weather_df: DataFrame com dados climáticos.
+        elevation: Elevação em metros.
+        latitude: Latitude em graus (-90 a 90).
 
     Returns:
-        Tuple[pd.DataFrame, list]: DataFrame com ETo e lista de avisos.
+        Tuple contendo:
+        - DataFrame com ETo calculada
+        - Lista de avisos/erros
     """
     warnings = []
     try:
         required_columns = [
-            "T2M_MAX", "T2M_MIN", "T2M", "RH2M", "WS2M", "ALLSKY_SFC_SW_DWN", "day_of_year", "Ra"
+            "T2M_MAX", "T2M_MIN", "T2M", "RH2M", "WS2M", 
+            "ALLSKY_SFC_SW_DWN", "day_of_year", "Ra"
         ]
-        missing_columns = [col for col in required_columns if col not in weather_df.columns]
+        missing_columns = [
+            col for col in required_columns 
+            if col not in weather_df.columns
+        ]
         if missing_columns:
-            warnings.append(f"Colunas necessárias ausentes: {missing_columns}")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
+            msg = f"Colunas necessárias ausentes: {missing_columns}"
+            warnings.append(msg)
+            logger.error(msg)
+            raise ValueError(msg)
 
         if not pd.api.types.is_datetime64_any_dtype(weather_df.index):
-            warnings.append("O índice do DataFrame deve estar no formato datetime (YYYY-MM-DD)")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
+            msg = "O índice do DataFrame deve estar no formato datetime"
+            warnings.append(msg)
+            logger.error(msg)
+            raise ValueError(msg)
 
-        T2M_MAX = weather_df["T2M_MAX"].values
-        T2M_MIN = weather_df["T2M_MIN"].values
-        T2M = weather_df["T2M"].values
-        RH2M = weather_df["RH2M"].values
-        WS2M = weather_df["WS2M"].values
-        ALLSKY_SFC_SW_DWN = weather_df["ALLSKY_SFC_SW_DWN"].values
-        Ra = weather_df["Ra"].values
+        # Extrair arrays numpy para melhor performance
+        T2M_MAX = np.array(weather_df["T2M_MAX"])
+        T2M_MIN = np.array(weather_df["T2M_MIN"])
+        T2M = np.array(weather_df["T2M"])
+        RH2M = np.array(weather_df["RH2M"])
+        WS2M = np.array(weather_df["WS2M"])
+        ALLSKY_SFC_SW_DWN = np.array(weather_df["ALLSKY_SFC_SW_DWN"])
+        Ra = np.array(weather_df["Ra"])
 
-        if np.isnan(T2M).any():
-            warnings.append("Valores NaN detectados em T2M")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
+        # Validar dados
+        if np.any(np.isnan([T2M, RH2M, WS2M, ALLSKY_SFC_SW_DWN, Ra])):
+            msg = "Valores NaN detectados nos dados meteorológicos"
+            warnings.append(msg)
+            logger.error(msg)
+            raise ValueError(msg)
 
-        P = 101.3 * np.power(((293 - 0.0065 * elevation) / 293), 5.26)
-        gamma = P * 0.665 * 1e-3
-        es = (0.6108 * np.exp(17.27 * T2M_MIN / (T2M_MIN + 237.3)) + 
-              0.6108 * np.exp(17.27 * T2M_MAX / (T2M_MAX + 237.3))) / 2
+        # Cálculos FAO-56
+        P = 101.3 * ((293 - 0.0065 * elevation) / 293) ** 5.26
+        gamma = P * 0.665e-3
+
+        es = 0.6108 * (
+            np.exp(17.27 * T2M_MIN / (T2M_MIN + 237.3)) + 
+            np.exp(17.27 * T2M_MAX / (T2M_MAX + 237.3))
+        ) / 2
+
         ea = es * RH2M / 100
-        Delta = 4098 * (0.6108 * np.exp(17.27 * T2M / (T2M + 237.3))) / (T2M + 237.3) ** 2
+        Delta = (
+            4098 * 0.6108 * np.exp(17.27 * T2M / (T2M + 237.3)) / 
+            (T2M + 237.3) ** 2
+        )
 
-        weather_df["is_leap_year"] = weather_df.index.is_leap_year
-        total_days_in_year = np.where(weather_df["is_leap_year"], 366, 365)
+        total_days_in_year = np.where(
+            pd.DatetimeIndex(weather_df.index).is_leap_year, 366, 365
+        )
 
-        Rso = (0.75 + (2 * elevation * 0.00001)) * Ra
-        SIGMA = 4.903 * 1e-9
-        Rnl = (SIGMA * (((T2M_MAX + 273.16) ** 4 + (T2M_MIN + 273.16) ** 4) / 2) * 
-               (0.34 - 0.14 * np.sqrt(ea)) * 
-               (1.35 * (ALLSKY_SFC_SW_DWN / np.where(Rso > 0, Rso, 1)) - 0.35))
+        Rso = (0.75 + 2e-5 * elevation) * Ra
+        SIGMA = 4.903e-9
+        
+        Rnl = (
+            SIGMA * ((T2M_MAX + 273.16) ** 4 + (T2M_MIN + 273.16) ** 4) / 2 *
+            (0.34 - 0.14 * np.sqrt(ea)) * 
+            (1.35 * np.divide(
+                ALLSKY_SFC_SW_DWN, 
+                np.where(Rso > 0, Rso, 1)
+            ) - 0.35)
+        )
+
         ALBEDO = 0.23
         Rns = (1 - ALBEDO) * ALLSKY_SFC_SW_DWN
         Rn = Rns - Rnl
@@ -77,137 +131,171 @@ def calculate_eto(weather_df: pd.DataFrame, elevation: float, latitude: float) -
         denominator = Delta + gamma * (1 + 0.34 * WS2M)
         ETo = np.where(
             denominator != 0,
-            (0.408 * Delta * Rn + gamma * (900 / (T2M + 273)) * WS2M * (es - ea)) / denominator,
-            np.nan,
+            (0.408 * Delta * Rn + gamma * (900 / (T2M + 273)) * WS2M * (es - ea)) / 
+            denominator,
+            np.nan
         )
 
+        # Atualizar DataFrame
         weather_df["ETo"] = ETo
+        result_columns = [
+            "T2M_MAX", "T2M_MIN", "RH2M", "WS2M", 
+            "ALLSKY_SFC_SW_DWN", "PRECTOTCORR", "ETo"
+        ]
+        
         logger.info("Cálculo de ETo concluído com sucesso")
-        return weather_df[["T2M_MAX", "T2M_MIN", "RH2M", "WS2M", "ALLSKY_SFC_SW_DWN", "PRECTOTCORR", "ETo"]], warnings
+        return weather_df[result_columns], warnings
+
     except Exception as e:
-        warnings.append(f"Erro no cálculo de ETo: {str(e)}")
-        logger.error(warnings[-1])
+        msg = f"Erro no cálculo de ETo: {str(e)}"
+        warnings.append(msg)
+        logger.error(msg)
         raise
 
-@app.task
+@app.task(bind=True, name='src.eto_calculator.calculate_eto_pipeline')
 async def calculate_eto_pipeline(
+    self,
     lat: float,
     lng: float,
     elevation: float,
     database: str,
     d_inicial: str,
     d_final: str,
-    estado: str = None,
-    cidade: str = None
-) -> tuple[dict, list]:
+    estado: Optional[str] = None,
+    cidade: Optional[str] = None
+) -> Tuple[Dict[str, Any], List[str]]:
     """
-    Pipeline para download, pré-processamento, fusão de dados e cálculo de ETo.
+    Pipeline completo para cálculo de ETo.
+
+    Este pipeline realiza:
+    1. Validação de parâmetros de entrada
+    2. Download de dados meteorológicos
+    3. Pré-processamento dos dados
+    4. Cálculo da ETo
+    5. Fusão de dados (quando aplicável)
 
     Args:
-        lat (float): Latitude (-90 a 90).
-        lng (float): Longitude (-180 a 180).
-        elevation (float): Elevação em metros.
-        database (str): Fonte de dados ('openmeteo_archive', 'openmeteo_forecast', 'nasa_power', 'Data Fusion').
-        d_inicial (str): Data inicial (YYYY-MM-DD).
-        d_final (str): Data final (YYYY-MM-DD).
-        estado (str, optional): Estado para modo MATOPIBA.
-        cidade (str, optional): Cidade para modo MATOPIBA.
+        lat: Latitude (-90 a 90)
+        lng: Longitude (-180 a 180)
+        elevation: Elevação em metros
+        database: Base de dados ('nasa_power' ou 'openmeteo_forecast')
+        d_inicial: Data inicial (YYYY-MM-DD)
+        d_final: Data final (YYYY-MM-DD)
+        estado: Estado para modo MATOPIBA
+        cidade: Cidade para modo MATOPIBA
 
     Returns:
-        Tuple[dict, list]: Dados de ETo em formato dicionário e lista de avisos.
+        Tuple contendo:
+        - Dicionário com dados de ETo
+        - Lista de avisos/erros
     """
     warnings = []
     try:
-        logger.info("Iniciando pipeline de cálculo de ETo")
-
-        # Validação de parâmetros
+        # Validar coordenadas
         if not (-90 <= lat <= 90):
-            warnings.append("Latitude must be between -90 and 90.")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
+            raise ValueError("Latitude deve estar entre -90 e 90 graus")
         if not (-180 <= lng <= 180):
-            warnings.append("Longitude must be between -180 and 180.")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
-        if elevation < -1000 or elevation > 9000:
-            warnings.append("Elevation must be between -1000 and 9000 meters.")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
-        valid_databases = ["openmeteo_archive", "openmeteo_forecast", "nasa_power", "Data Fusion"]
+            raise ValueError("Longitude deve estar entre -180 e 180 graus")
+
+        # Validar database
+        valid_databases = ["nasa_power", "openmeteo_forecast"]
         if database not in valid_databases:
-            warnings.append(f"Invalid database. Use one of: {valid_databases}")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
+            raise ValueError(f"Base de dados inválida. Use: {valid_databases}")
+
+        # Validar datas
         try:
             start = datetime.strptime(d_inicial, "%Y-%m-%d")
             end = datetime.strptime(d_final, "%Y-%m-%d")
         except ValueError:
-            warnings.append("Invalid date format. Use YYYY-MM-DD.")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
+            raise ValueError("Formato de data inválido. Use: YYYY-MM-DD")
+
+        # Validar período
+        hoje = datetime.now()
+        um_ano_atras = hoje - timedelta(days=365)
+        amanha = hoje + timedelta(days=1)
+
+        if start < um_ano_atras:
+            raise ValueError("Data inicial não pode ser anterior a 1 ano atrás")
+        if end > amanha:
+            raise ValueError("Data final não pode ser posterior a amanhã")
         if end < start:
-            warnings.append("End date must be after start date.")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
+            raise ValueError("Data final deve ser posterior à data inicial")
+
         period_days = (end - start).days + 1
         if period_days < 7 or period_days > 15:
-            warnings.append("Period must be between 7 and 15 days.")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
-        if (estado or cidade) and not (estado and cidade):
-            warnings.append("Both estado and cidade must be provided for MATOPIBA mode.")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
+            raise ValueError("O período deve ser entre 7 e 15 dias")
 
-        # Download de dados climáticos
-        logger.info("Baixando dados climáticos")
-        weather_data, download_warnings = await download_weather_data(database, d_inicial, d_final, lng, lat)
+        # Validar modo MATOPIBA
+        is_matopiba = database == "openmeteo_forecast"
+        if is_matopiba:
+            if not (estado and cidade):
+                raise ValueError(
+                    "Estado e cidade são obrigatórios para o modo MATOPIBA"
+                )
+            if not (MATOPIBA_BOUNDS['lat_min'] <= lat <= MATOPIBA_BOUNDS['lat_max'] and
+                   MATOPIBA_BOUNDS['lng_min'] <= lng <= MATOPIBA_BOUNDS['lng_max']):
+                warnings.append(
+                    "Coordenadas fora da região típica do MATOPIBA"
+                )
+
+        # Download dos dados primários
+        weather_data, download_warnings = await download_weather_data(
+            database, d_inicial, d_final, lng, lat
+        )
         warnings.extend(download_warnings)
-        if weather_data is None or not isinstance(weather_data, pd.DataFrame) or weather_data.empty:
-            warnings.append("Falha ao baixar dados climáticos")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
+
+        if weather_data is None or weather_data.empty:
+            raise ValueError("Falha ao obter dados meteorológicos")
+
+        # Se estiver no modo global, tenta buscar dados adicionais para fusão
+        additional_data = []
+        if database == "nasa_power":
+            try:
+                # Tentar obter dados de outras fontes disponíveis
+                for additional_source in ["met_norway", "nws", "noaa_cdo"]:
+                    try:
+                        extra_data, extra_warnings = await download_weather_data(
+                            additional_source, d_inicial, d_final, lng, lat
+                        )
+                        if extra_data is not None and not extra_data.empty:
+                            additional_data.append(extra_data)
+                            warnings.extend(extra_warnings)
+                    except Exception as e:
+                        warnings.append(
+                            f"Erro ao obter dados de {additional_source}: {str(e)}"
+                        )
+                
+                # Se tiver dados adicionais, realizar fusão
+                if additional_data:
+                    all_data = [weather_data] + additional_data
+                    fused_data, fusion_warnings = await data_fusion(
+                        [df.to_dict() for df in all_data]
+                    )
+                    warnings.extend(fusion_warnings)
+                    
+                    if fused_data:
+                        weather_data = pd.DataFrame.from_dict(fused_data)
+                        logger.info("Fusão de dados realizada com sucesso")
+                    else:
+                        warnings.append("Fusão de dados falhou, usando dados primários")
+                
+            except Exception as e:
+                warnings.append(f"Erro no processo de fusão: {str(e)}")
+                logger.error(f"Erro na fusão de dados: {str(e)}")
+                # Continua com os dados primários em caso de erro
 
         # Pré-processamento
-        logger.info("Pré-processando dados")
-        task = preprocessing.delay(weather_data.to_dict(), lat)
-        forecast_data_dict, preprocess_warnings = task.get(timeout=10)
-        warnings.extend(preprocess_warnings)
-        forecast_data = pd.DataFrame(forecast_data_dict)
-        if forecast_data is None or forecast_data.empty:
-            warnings.append("Falha no pré-processamento dos dados")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
-
-        # Fusão de dados (se selecionado)
-        if database == "Data Fusion":
-            logger.info("Aplicando fusão de dados")
-            try:
-                task = data_fusion.delay([forecast_data.to_dict(), weather_data.to_dict()])
-                fused_data_dict, fusion_warnings = task.get(timeout=10)
-                warnings.extend(fusion_warnings)
-                weather_data = pd.DataFrame(fused_data_dict)
-                if weather_data.empty:
-                    warnings.append("Fusão de dados retornou DataFrame vazio")
-                    logger.error(warnings[-1])
-                    raise ValueError(warnings[-1])
-            except Exception as e:
-                warnings.append(f"Erro na fusão de dados: {str(e)}")
-                logger.error(warnings[-1])
-                raise ValueError(warnings[-1])
-
+        weather_data = await preprocessing(weather_data, lat)
+        
         # Cálculo de ETo
-        logger.info("Calculando ETo")
-        eto_df, eto_warnings = calculate_eto(forecast_data, elevation, lat)
-        warnings.extend(eto_warnings)
-        if eto_df is None or eto_df.empty:
-            warnings.append("Falha no cálculo de ETo")
-            logger.error(warnings[-1])
-            raise ValueError(warnings[-1])
+        result_df, calc_warnings = calculate_eto(weather_data, elevation, lat)
+        warnings.extend(calc_warnings)
 
-        logger.info("Pipeline concluído com sucesso")
-        return eto_df.to_dict(), warnings
+        # Retornar resultados
+        return result_df.to_dict(orient='records'), warnings
+
     except Exception as e:
-        warnings.append(f"Erro no pipeline: {str(e)}")
-        logger.error(warnings[-1])
+        msg = f"Erro no pipeline de ETo: {str(e)}"
+        warnings.append(msg)
+        logger.error(msg)
         return {}, warnings

@@ -1,636 +1,968 @@
-import json
+"""
+EVAonline ETo Dashboard com Mapas de Calor e Análises
+
+Este módulo implementa a página de cálculo e visualização de evapotranspiração (ETo) do EVAonline.
+Permite que os usuários:
+1. Visualizem mapas de calor de ETo para o Matopiba atualizado 3x por dia
+2. Analisem séries temporais de dados de ETo
+3. Comparem diferentes fontes de dados (NASA POWER, NOAA, Open-Meteo)
+4. Realizem análises estatísticas
+5. Exportem dados em vários formatos (CSV, Excel, GeoJSON)
+
+O sistema usa:
+- dash-leaflet para mapas de calor e camadas GeoJSON
+- PostgreSQL com PostGIS para armazenamento de dados geoespaciais
+- Algoritmo de fusão de dados de múltiplas fontes
+"""
+
+# Standard library imports
+import io
+import os
 from datetime import date, timedelta
+from typing import Dict, List, Optional, Tuple, Any
+from urllib.parse import parse_qs
+
+# Third-party imports
 import dash
-from dash import dcc, html, Input, Output, State, callback
 import dash_bootstrap_components as dbc
 import dash_leaflet as dl
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from loguru import logger
 import requests
-import io
+from dash import dcc, html, Input, Output, State, callback, no_update
+from dotenv import load_dotenv
+from loguru import logger
+
+# Local imports
+from components.navbar import render_navbar_bootswatch
+from components.footer import render_footer_bootswatch
 from src.map_generator import create_interactive_map
-from src.results_tables import display_results_table
 from src.results_graphs import (
     plot_correlation,
     plot_eto_vs_radiation,
     plot_eto_vs_temperature,
     plot_heatmap,
-    plot_temp_rad_prec,
+    plot_temp_rad_prec
 )
 from src.results_statistical import (
     display_correlation_matrix,
     display_cumulative_distribution,
     display_daily_data,
     display_descriptive_stats,
-    display_normality_test,
     display_eto_summary,
-    display_trend_analysis,
+    display_normality_test,
     display_seasonality_test,
+    display_trend_analysis
 )
-from utils.get_translations import get_translations
-from utils.session_utils import reset_state
+from src.results_tables import display_results_table
 from utils.data_utils import load_matopiba_data
+from utils.get_translations import get_translations
 
-app = dash.Dash(
-    __name__,
-    external_stylesheets=[dbc.themes.BOOTSTRAP, "/assets/fontawesome.css", "/assets/styles.css"],
-    suppress_callback_exceptions=True
-)
+# --- Configurações e Constantes ---
 
-# Configurar logging com Loguru
-logger = logger.bind(name="eto_dashboard")
+# Carrega variáveis de ambiente
+load_dotenv()
 
-# Layout
-def create_layout(lang: str = "pt"):
-    t = get_translations(lang)
+# Configurações da API
+API_CONFIG = {
+    'url': os.getenv("API_URL", "http://api:8000"),
+    'timeout': int(os.getenv("API_TIMEOUT", "10")),
+    'retry_attempts': int(os.getenv("API_RETRY_ATTEMPTS", "3"))
+}
+
+# Configurações de datas
+DATE_CONFIG = {
+    'max_days_past': int(os.getenv("MAX_DAYS_PAST", "365")),
+    'max_days_future': int(os.getenv("MAX_DAYS_FUTURE", "1"))
+}
+
+# Cache para traduções
+_translations_cache: Dict[str, dict] = {}
+
+def get_translations_cached(lang: str = "pt") -> dict:
+    """
+    Busca traduções da API com cache e fallback para arquivo local.
+    
+    Args:
+        lang: Código do idioma (pt/en)
+    
+    Returns:
+        dict: Dicionário com as traduções
+        
+    Note:
+        Usa cache em memória para reduzir chamadas à API
+    """
+    if lang in _translations_cache:
+        return _translations_cache[lang]
+        
+    try:
+        response = requests.get(
+            f"{API_CONFIG['url']}/api/translations/{lang}",
+            timeout=API_CONFIG['timeout']
+        )
+        response.raise_for_status()
+        translations = response.json()
+        
+        # Armazena no cache
+        _translations_cache[lang] = translations
+        logger.info(f"Traduções carregadas da API para '{lang}'")
+        
+        return translations
+        
+    except requests.Timeout:
+        logger.warning(f"Timeout ao buscar traduções para '{lang}'")
+        return get_translations(lang)
+        
+    except requests.RequestException as e:
+        logger.error(
+            f"Erro ao buscar traduções para '{lang}'. "
+            f"Usando fallback local. Erro: {str(e)}"
+        )
+        return get_translations(lang)
+
+# --- Gestão de Estado ---
+
+class EToState:
+    """
+    Classe para gerenciar o estado da aplicação ETo.
+    
+    Attributes:
+        DEFAULT_DATES (dict): Datas padrão para o período de cálculo
+        REQUIRED_FIELDS (list): Campos obrigatórios para cálculo
+        VALID_MODES (list): Modos de cálculo válidos
+    """
+    
+    DEFAULT_DATES = {
+        'start': date.today() - timedelta(days=7),
+        'end': date.today(),
+        'min_past': timedelta(days=DATE_CONFIG['max_days_past']),
+        'max_future': timedelta(days=DATE_CONFIG['max_days_future'])
+    }
+    
+    REQUIRED_FIELDS = ['lat', 'lng', 'elev', 'database', 'start_date', 'end_date']
+    VALID_MODES = ['Global', 'MATOPIBA']
+    
+    @staticmethod
+    def validate_coordinates(coords: dict) -> Tuple[bool, Optional[str]]:
+        """
+        Valida as coordenadas fornecidas.
+        
+        Args:
+            coords: Dicionário com lat, lng e elev
+            
+        Returns:
+            bool: True se válido, False caso contrário
+            str: Mensagem de erro se inválido, None se válido
+        """
+        if not coords or not all(k in coords for k in ['lat', 'lng', 'elev']):
+            return False, "Coordenadas incompletas"
+            
+        try:
+            lat, lng, elev = coords['lat'], coords['lng'], coords['elev']
+            if not (-90 <= lat <= 90):
+                return False, "Latitude inválida"
+            if not (-180 <= lng <= 180):
+                return False, "Longitude inválida"
+            if not (0 <= elev <= 8848):  # Altura do Monte Everest
+                return False, "Elevação inválida"
+            return True, None
+        except (TypeError, ValueError):
+            return False, "Valores de coordenadas inválidos"
+    
+    @staticmethod
+    def validate_dates(start_date: str, end_date: str) -> Tuple[bool, Optional[str]]:
+        """
+        Valida o período selecionado.
+        
+        Args:
+            start_date: Data inicial
+            end_date: Data final
+            
+        Returns:
+            bool: True se válido, False caso contrário
+            str: Mensagem de erro se inválido, None se válido
+        """
+        try:
+            start = date.fromisoformat(start_date)
+            end = date.fromisoformat(end_date)
+            
+            if end < start:
+                return False, "Data final anterior à inicial"
+                
+            min_date = date.today() - EToState.DEFAULT_DATES['min_past']
+            max_date = date.today() + EToState.DEFAULT_DATES['max_future']
+            
+            if start < min_date or end > max_date:
+                return False, "Período fora do intervalo permitido"
+                
+            return True, None
+        except ValueError:
+            return False, "Formato de data inválido"
+
+# --- Layout da Página ---
+
+def create_layout(lang: str = "pt") -> dbc.Container:
+    """
+    Cria o layout completo e modular do dashboard de ETo.
+    
+    Args:
+        lang: Código do idioma (pt/en)
+        
+    Returns:
+        dbc.Container: Layout completo da página
+    """
+    t = get_translations_cached(lang)
+    
     return dbc.Container([
-        html.H3(t["calculate_eto"], className="mt-3", style={"color": "#005B99"}),
-        dcc.Dropdown(
-            id="language-selector",
-            options=[
-                {"label": "Português", "value": "pt"},
-                {"label": "English", "value": "en"}
-            ],
-            value=lang,
-            style={"width": "200px", "margin": "10px"}
-        ),
+        # Componentes de estado e localização
+        dcc.Location(id='eto-url', refresh=False),
+        dcc.Store(id='eto-language-store', data=lang),
+        dcc.Store(id='eto-selected-coordinates'),
+        dcc.Store(id='eto-result-data'),
+        dcc.Store(id='eto-warnings-data'),
+        dcc.Store(id='eto-validation-errors'),
+
+        # Cabeçalho e instruções
+        html.H3(t["calculate_eto"], className="mt-4 mb-3 text-primary"),
         dbc.Accordion([
-            dbc.AccordionItem([
-                html.P(t["instruction_1"]),
-                html.P(t["instruction_2"]),
-                html.P(t["instruction_3"]),
-                html.P(t["instruction_4"])
-            ], title=t["instructions"])
-        ], start_collapsed=True),
-        html.Hr(),
-        html.H5(t["select_mode"], className="mt-3"),
-        dcc.RadioItems(
-            id="calculation-mode",
-            options=[
-                {"label": t["global_mode"], "value": "Global"},
-                {"label": t["matopiba_mode"], "value": "MATOPIBA"}
-            ],
-            value="Global",
-            labelStyle={"display": "block"}
-        ),
+            dbc.AccordionItem([html.P(t[f"instruction_{i}"]) for i in range(1, 5)], title=t["instructions"])
+        ], start_collapsed=True, className="mb-4"),
+
+        # Seção de Parâmetros
         dbc.Row([
-            dbc.Col([
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(t["select_mode"], className="card-title"),
+                dbc.RadioItems(id="calculation-mode", options=[
+                    {"label": t["global_mode"], "value": "Global"},
+                    {"label": t["matopiba_mode"], "value": "MATOPIBA"}
+                ], value="Global", className="mb-3"),
                 html.Div(id="coord-input-section")
-            ], width=6),
-            dbc.Col([
-                html.H5(t["confirmation_params"], className="mt-3", style={"color": "#005B99"}),
-                dcc.Dropdown(
-                    id="data-source",
-                    options=[
-                        {"label": "NASA POWER", "value": "NASA POWER"},
-                        {"label": "Open-Meteo Archive", "value": "Open-Meteo Archive"},
-                        {"label": "Open-Meteo Forecast", "value": "Open-Meteo Forecast"},
-                        {"label": "Data Fusion", "value": "Data Fusion"}
-                    ],
-                    placeholder=t["database"],
-                    value=None,
-                    style={"margin": "10px"}
-                ),
-                dcc.DatePickerRange(
-                    id="date-range",
-                    display_format="DD/MM/YYYY",
-                    start_date=date.today() - timedelta(days=7),
-                    end_date=date.today(),
-                    min_date_allowed=date.today() - timedelta(days=365),
-                    max_date_allowed=date.today() + timedelta(days=2),
-                    style={"margin": "10px"}
-                ),
-                html.P(id="mode-display"),
-                html.P(id="database-display"),
-                html.P(id="start-date-display"),
-                html.P(id="end-date-display"),
-                html.P(id="state-display", style={"display": "none"}),
-                html.P(id="city-display", style={"display": "none"}),
-                html.P(id="lat-display"),
-                html.P(id="lng-display"),
-                html.P(id="elevation-display"),
-                dcc.Input(
-                    id="elevation-input",
-                    type="number",
-                    min=-1000,
-                    max=9000,
-                    step=1,
-                    placeholder=t["elevation"],
-                    style={"width": "100%", "margin": "10px"}
-                ),
-                dbc.Row([
-                    dbc.Col(dbc.Button(t["cancel"], id="cancel-button", color="danger"), width=6),
-                    dbc.Col(dbc.Button(t["confirm"], id="confirm-button", color="success"), width=6)
-                ], className="mt-3"),
-                dbc.Button(t["calculate_eto_button"], id="calculate-eto-button", color="primary", className="mt-3", disabled=True, style={"width": "100%"}),
-                html.Div(id="progress-output")
-            ], width=6)
+            ])), md=6, className="mb-4"),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(t["confirmation_params"], className="card-title"),
+                dcc.Dropdown(id="data-source", options=[{"label": "NASA POWER", "value": "nasa_power"}], placeholder=t["database"]),
+                dcc.DatePickerRange(id="date-range", display_format="DD/MM/YYYY", start_date=date.today() - timedelta(days=7), end_date=date.today(), min_date_allowed=date.today() - timedelta(days=365), max_date_allowed=date.today() + timedelta(days=1), className="mt-3 mb-3"),
+                html.Div(id="params-display", className="text-muted small border-start border-2 ps-2"),
+                dbc.Button(t["calculate_eto_button"], id="calculate-eto-button", color="primary", className="mt-3 w-100", disabled=True),
+                dbc.Spinner(html.Div(id="progress-output", className="mt-2"))
+            ])), md=6, className="mb-4"),
         ]),
-        html.Hr(),
-        html.H3(t["results_location"], className="mt-3", style={"color": "#005B99"}),
-        dcc.Tabs([   
-            dcc.Tab(label=t["table_and_graphs"], children=[
-                dbc.Row([
-                    dbc.Col(dcc.Checklist(id="show-table", options=[{"label": t["show_table"], "value": "show_table"}]), width=6),
-                    dbc.Col(dcc.Checklist(id="show-graphic", options=[{"label": t["show_graphic"], "value": "show_graphic"}]), width=6)
-                ]),
-                dbc.Row([
-                    dbc.Col(id="table-output", width=6),
-                    dbc.Col([
-                        dcc.Dropdown(
-                            id="graphic-type",
-                            options=[
-                                {"label": t["eto_vs_temp"], "value": "eto_vs_temp"},
-                                {"label": t["eto_vs_rad"], "value": "eto_vs_rad"},
-                                {"label": t["temp_rad_prec"], "value": "temp_rad_prec"},
-                                {"label": t["heatmap"], "value": "heatmap"},
-                                {"label": t["correlation"], "value": "correlation"}
-                            ],
-                            value="eto_vs_temp",
-                            placeholder=t["select_graphic_type"],
-                            style={"margin": "10px"}
-                        ),
-                        html.Div(id="correlation-var", style={"display": "none"}),
-                        dcc.Graph(id="graphic-output")
-                    ], width=6)
-                ]),
-                dbc.Row([
-                    dbc.Col(dbc.Button(t["download_csv"], id="download-csv-button", color="primary", className="mt-3", style={"width": "100%"}), width=6),
-                    dbc.Col(dbc.Button(t["download_excel"], id="download-excel-button", color="primary", className="mt-3", style={"width": "100%"}), width=6)
-                ])
-            ]),
-            dcc.Tab(label=t["statistical_analysis"], children=[
-                html.Div(id="stats-output")
-            ])
-        ]),
-        dcc.Download(id="download-csv"),
-        dcc.Download(id="download-excel"),
-        html.Hr(),
-        dbc.Row([
-            dbc.Col(dbc.Button(t["clear_all"], id="clear-button", color="secondary", style={"width": "100%"}), width=6),
-            dbc.Col(dbc.Button(t["back_to_home"], id="home-button", color="info", style={"width": "100%"}), width=6)
-        ], className="mt-3"),
-        dcc.Store(id="language-store", data=lang),
-        dcc.Store(id="eto_result"),
-        dcc.Store(id="eto_warnings"),
-        dcc.Store(id="selected-coordinates")
+        
+        # Seção de Resultados (inicialmente oculta)
+        html.Div(id="results-section", style={'display': 'none'})
     ], fluid=True)
 
-# Callbacks (mantidos como no original, com ajustes)
-@callback(
-    Output("coord-input-section", "children"),
-    Input("calculation-mode", "value"),
-    Input("language-selector", "value")
-)
-def update_coord_input(mode, lang):
-    t = get_translations(lang)
-    if mode == "Global":
-        return [
-            html.H5(t["global_mode"], className="mt-3", style={"color": "#005B99"}),
-            dcc.RadioItems(
-                id="coord-option",
-                options=[
-                    {"label": t["click_to_select"], "value": "click"},
-                    {"label": t["adjust_manually"], "value": "manual"}
-                ],
-                value="click",
-                labelStyle={"display": "block"}
-            ),
-            html.Div(id="coord-input-global")
-        ]
-    else:
-        df, warnings = load_matopiba_data(lang)
-        estados = sorted(df["UF"].unique().tolist()) if not df.empty else []
-        return [
-            html.H5(t["matopiba_mode"], className="mt-3", style={"color": "#005B99"}),
-            dcc.RadioItems(
-                id="coord-option",
-                options=[
-                    {"label": t["choose_city"], "value": "city"},
-                    {"label": t["adjust_manually"], "value": "manual"}
-                ],
-                value="city",
-                labelStyle={"display": "block"}
-            ),
-            html.Div(id="coord-input-matopiba"),
-            dcc.Dropdown(id="estado", options=[{"label": e, "value": e} for e in estados], placeholder=t["choose_state"], style={"margin": "10px"}),
-            html.Div(id="cidade-container")
-        ]
 
-@callback(
-    Output("coord-input-global", "children"),
-    Input("coord-option", "value"),
-    Input("calculation-mode", "value"),
-    Input("language-selector", "value")
-)
-def update_global_coord_input(coord_option, mode, lang):
-    t = get_translations(lang)
-    if mode != "Global":
-        return []
-    if coord_option == "click":
-        return [
-            dl.Map(
-                [dl.TileLayer(), create_interactive_map()],
-                id="map",
-                center=[0, 0],
-                zoom=1,
-                style={"width": "100%", "height": "50vh"}
-            ),
-            html.P(id="selected-coords")
-        ]
-    else:
-        return [
-            dbc.Row([
-                dbc.Col(dcc.Input(id="lat-input", type="number", placeholder=t["latitude"], min=-90, max=90, step=0.000001), width=6),
-                dbc.Col(dcc.Input(id="lng-input", type="number", placeholder=t["longitude"], min=-180, max=180, step=0.000001), width=6)
-            ])
-        ]
+# --- CALLBACKS ---
 
+# Callback 1: Preenche as coordenadas a partir da URL
 @callback(
-    Output("coord-input-matopiba", "children"),
-    Output("cidade-container", "children"),
-    Input("coord-option", "value"),
-    Input("estado", "value"),
-    Input("calculation-mode", "value"),
-    Input("language-selector", "value")
+    Output('eto-selected-coordinates', 'data'),
+    Output('calculation-mode', 'value'),
+    Input('eto-url', 'search')
 )
-def update_matopiba_coord_input(coord_option, estado, mode, lang):
-    t = get_translations(lang)
-    if mode != "MATOPIBA":
-        return [], []
-    if coord_option == "city":
-        df, warnings = load_matopiba_data(lang)
-        cidades = sorted(df[df["UF"] == estado]["CITY"].tolist()) if estado and not df.empty else []
-        cidade_dropdown = dcc.Dropdown(
-            id="cidade",
-            options=[{"label": c, "value": c} for c in cidades],
-            placeholder=t["choose_city"],
-            disabled=not estado,
-            style={"margin": "10px"}
+def populate_from_url(search: str) -> tuple:
+    """
+    Lê os parâmetros da URL para preencher as coordenadas iniciais.
+    
+    Args:
+        search: String de busca da URL
+        
+    Returns:
+        tuple: (coordenadas, modo de cálculo)
+    """
+    if not search:
+        return no_update, no_update
+        
+    try:
+        # Extrai parâmetros da URL
+        params = parse_qs(search.lstrip('?'))
+        lat_str = params.get('lat', [None])[0]
+        lng_str = params.get('lng', [None])[0]
+        
+        if not (lat_str and lng_str):
+            return no_update, no_update
+            
+        # Converte e valida coordenadas
+        lat, lng = float(lat_str), float(lng_str)
+        is_valid, error_msg = EToState.validate_coordinates(
+            {'lat': lat, 'lng': lng, 'elev': 0}
         )
-        return [], cidade_dropdown
-    else:
-        return [
-            dbc.Row([
-                dbc.Col(dcc.Input(id="lat-input", type="number", placeholder=t["latitude"], value=-8.5, min=-14.5, max=-2.5, step=0.1), width=6),
-                dbc.Col(dcc.Input(id="lng-input", type="number", placeholder=t["longitude"], value=-45.75, min=-50.0, max=-41.5, step=0.1), width=6)
-            ])
-        ], []
-
-@callback(
-    Output("selected-coords", "children"),
-    Output("lat-display", "children"),
-    Output("lng-display", "children"),
-    Output("elevation-display", "children"),
-    Output("state-display", "children"),
-    Output("city-display", "children"),
-    Output("state-display", "style"),
-    Output("city-display", "style"),
-    Output("calculate-eto-button", "disabled"),
-    Output("selected-coordinates", "data"),
-    Input("map", "click_lat_lng"),
-    Input("lat-input", "value"),
-    Input("lng-input", "value"),
-    Input("elevation-input", "value"),
-    Input("estado", "value"),
-    Input("cidade", "value"),
-    Input("calculation-mode", "value"),
-    Input("coord-option", "value"),
-    Input("language-selector", "value"),
-    State("selected-coordinates", "data"),
-    prevent_initial_call=True
-)
-async def update_coordinates(click_lat_lng, lat_input, lng_input, elevation_input, estado, cidade, mode, coord_option, lang, coords_from_home):
-    t = get_translations(lang)
-    lat, lng, elevation = None, None, None
-    state_display, city_display = t["state"], t["city"]
-    state_style, city_style = {"display": "none"}, {"display": "none"}
-    
-    if mode == "Global" and coords_from_home:
-        lat = coords_from_home.get("lat")
-        lng = coords_from_home.get("lng")
-        response = requests.get(f"http://api:8000/get_elevation?lat={lat}&lng={lng}")
-        data = response.json()
-        elevation = data.get("elevation", 100)
-        elevation_warnings = data.get("warnings", [])
-        for w in elevation_warnings:
-            logger.warning(w)
-    
-    if mode == "Global" and coord_option == "click" and click_lat_lng:
-        lat, lng = click_lat_lng
-        response = requests.get(f"http://api:8000/get_elevation?lat={lat}&lng={lng}")
-        data = response.json()
-        elevation = data.get("elevation", 100)
-        elevation_warnings = data.get("warnings", [])
-        for w in elevation_warnings:
-            logger.warning(w)
-    elif mode == "Global" and coord_option == "manual":
-        lat, lng = lat_input, lng_input
-        elevation = elevation_input if elevation_input is not None else requests.get(f"http://api:8000/get_elevation?lat={lat}&lng={lng}").json().get("elevation", 100)
-    elif mode == "MATOPIBA" and coord_option == "city" and estado and cidade:
-        df, warnings = load_matopiba_data(lang)
-        cidade_info = df[(df["UF"] == estado) & (df["CITY"] == cidade)]
-        if not cidade_info.empty:
-            lat, lng, elevation = cidade_info.iloc[0][["LATITUDE", "LONGITUDE", "HEIGHT"]]
-            state_display, city_display = estado, cidade
-            state_style, city_style = {"display": "block"}, {"display": "block"}
-    elif mode == "MATOPIBA" and coord_option == "manual":
-        lat, lng = lat_input, lng_input
-        elevation = elevation_input if elevation_input is not None else requests.get(f"http://api:8000/get_elevation?lat={lat}&lng={lng}").json().get("elevation", 100)
-    
-    valid = (
-        lat is not None and lng is not None and elevation is not None and
-        -90 <= lat <= 90 and -180 <= lng <= 180 and
-        (mode != "MATOPIBA" or (-14.5 <= lat <= -2.5 and -50.0 <= lng <= -41.5))
-    )
-    
-    coords_data = {"lat": lat, "lng": lng, "elev": elevation} if valid else None
-    
-    return (
-        f"{t['coords_captured']}: {lat:.6f}, {lng:.6f}, {t['elevation']}: {elevation:.2f}m" if valid else "",
-        f"🌐 {t['latitude']}: {lat:.6f}" if lat else f"🌐 {t['latitude']}: Não selecionado",
-        f"🌐 {t['longitude']}: {lng:.6f}" if lng else f"🌐 {t['longitude']}: Não selecionado",
-        f"📏 {t['elevation']}: {elevation:.2f}m" if elevation else f"📏 {t['elevation']}: Não selecionado",
-        f"🌎 {t['state']}: {state_display}",
-        f"🌆 {t['city']}: {city_display}",
-        state_style,
-        city_style,
-        not valid,
-        coords_data
-    )
-
-@callback(
-    Output("mode-display", "children"),
-    Output("database-display", "children"),
-    Output("start-date-display", "children"),
-    Output("end-date-display", "children"),
-    Output("progress-output", "children", allow_duplicate=True),
-    Input("confirm-button", "n_clicks"),
-    State("calculation-mode", "value"),
-    State("data-source", "value"),
-    State("date-range", "start_date"),
-    State("date-range", "end_date"),
-    State("language-selector", "value"),
-    prevent_initial_call=True
-)
-def update_params(confirm_clicks, mode, data_source, start_date, end_date, lang):
-    t = get_translations(lang)
-    progress_content = []
-    
-    if confirm_clicks:
-        data_inicial = pd.to_datetime(start_date).strftime("%d/%m/%Y") if start_date else None
-        data_final = pd.to_datetime(end_date).strftime("%d/%m/%Y") if end_date else None
         
-        hoje = date.today()
-        um_ano_atras = hoje - timedelta(days=365)
-        limite_futuro = hoje + timedelta(days=2)
-        
-        if not data_source:
-            progress_content.append(html.P(t["no_database_selected"]))
-        if not data_inicial or not data_final:
-            progress_content.append(html.P(t["no_dates_selected"]))
-        else:
-            try:
-                data_inicial_dt = pd.to_datetime(data_inicial, format="%d/%m/%Y")
-                data_final_dt = pd.to_datetime(data_final, format="%d/%m/%Y")
-                delta = (data_final_dt - data_inicial_dt).days + 1
-                if data_final_dt < data_inicial_dt:
-                    progress_content.append(html.P(t["invalid_date_range"]))
-                elif not (7 <= delta <= 15):
-                    progress_content.append(html.P(t["invalid_period"].format(delta)))
-                elif data_inicial_dt < um_ano_atras:
-                    progress_content.append(html.P(t["date_too_old"].format(um_ano_atras.strftime("%d/%m/%Y"))))
-                elif data_final_dt > limite_futuro:
-                    progress_content.append(html.P(t["date_too_future"].format(limite_futuro.strftime("%d/%m/%Y"))))
-                else:
-                    progress_content.append(html.P(t["valid_period"].format(delta)))
-            except ValueError as e:
-                progress_content.append(html.P(t["invalid_date_format"].format(str(e))))
-        
-        return (
-            f"**{t['calculation_mode']}:** {mode}",
-            f"📂 **{t['database']}:** {data_source if data_source else 'Não selecionado'}",
-            f"📆 **{t['start_date']}:** {data_inicial if data_inicial else 'Não selecionado'}",
-            f"📆 **{t['end_date']}:** {data_final if data_final else 'Não selecionado'}",
-            html.Ul([html.Li(p) for p in progress_content]) if progress_content else html.P(t["no_warnings"])
-        )
-    
-    return (
-        f"**{t['calculation_mode']}:** {mode}",
-        f"📂 **{t['database']}:** Não selecionado",
-        f"📆 **{t['start_date']}:** Não selecionado",
-        f"📆 **{t['end_date']}:** Não selecionado",
-        html.P(t["no_warnings"])
-    )
-
-@callback(
-    Output("table-output", "children"),
-    Output("graphic-output", "figure"),
-    Output("correlation-var", "children"),
-    Output("correlation-var", "style"),
-    Output("progress-output", "children", allow_duplicate=True),
-    Output("eto_result", "data"),
-    Output("eto_warnings", "data"),
-    Output("stats-output", "children"),
-    Input("calculate-eto-button", "n_clicks"),
-    State("show-table", "value"),
-    State("show-graphic", "value"),
-    State("graphic-type", "value"),
-    State("calculation-mode", "value"),
-    State("data-source", "value"),
-    State("date-range", "start_date"),
-    State("date-range", "end_date"),
-    State("selected-coordinates", "data"),
-    State("estado", "value"),
-    State("cidade", "value"),
-    State("language-selector", "value"),
-    prevent_initial_call=True
-)
-def update_results(n_clicks, show_table, show_graphic, graphic_type, mode, data_source, start_date, end_date, coords, estado, cidade, lang):
-    t = get_translations(lang)
-    table_content = []
-    fig = go.Figure()
-    corr_var_input = []
-    corr_var_style = {"display": "none"}
-    progress_content = []
-    stats_content = []
-
-    if n_clicks and coords and data_source and start_date and end_date:
+        if not is_valid:
+            logger.error(f"Coordenadas inválidas na URL: {error_msg}")
+            return no_update, no_update
+            
+        # Busca elevação via API
         try:
-            start_date_formatted = pd.to_datetime(start_date).strftime("%Y-%m-%d")
-            end_date_formatted = pd.to_datetime(end_date).strftime("%Y-%m-%d")
-
-            response = requests.get(
-                f"http://api:8000/calculate_eto?lat={coords['lat']}&lng={coords['lng']}&elevation={coords['elev']}&database={data_source}&start_date={start_date_formatted}&end_date={end_date_formatted}&estado={estado}&cidade={cidade}"
+            response = call_api_with_retry(
+                "/api/get_elevation",
+                params={"lat": lat, "lng": lng}
             )
-            data = response.json()
+            elev = response.json().get("data", {}).get("elevation")
+            
+            if elev is not None:
+                return {'lat': lat, 'lng': lng, 'elev': elev}, 'Global'
+                
+        except requests.RequestException as e:
+            logger.error(f"Erro ao buscar elevação: {str(e)}")
+            
+    except (ValueError, TypeError) as e:
+        logger.error(f"Erro ao processar coordenadas da URL: {str(e)}")
+        
+    return no_update, no_update
 
-            if "error" in data:
-                progress_content.append(html.P(f"{t['error']}: {data['error']}"))
-                return table_content, fig, corr_var_input, corr_var_style, html.Ul([html.Li(p) for p in progress_content]), [], [], []
 
-            df = pd.DataFrame(data["data"])
-            warnings = data["warnings"]
-            progress_content.extend([html.P(w) for w in warnings])
+# --- Funções de API ---
 
-            eto_result = df.to_dict("records")
-            eto_warnings = warnings
+def call_api_with_retry(
+    endpoint: str,
+    params: dict = None,
+    method: str = "GET",
+    max_retries: int = None
+) -> requests.Response:
+    """
+    Faz chamada à API com retry e timeout.
+    
+    Args:
+        endpoint: Endpoint da API (sem a URL base)
+        params: Parâmetros da requisição
+        method: Método HTTP
+        max_retries: Número máximo de tentativas
+        
+    Returns:
+        requests.Response: Resposta da API
+        
+    Raises:
+        requests.RequestException: Se todas as tentativas falharem
+    """
+    if max_retries is None:
+        max_retries = API_CONFIG['retry_attempts']
+        
+    url = f"{API_CONFIG['url']}{endpoint}"
+    timeout = API_CONFIG['timeout']
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.request(
+                method=method,
+                url=url,
+                params=params,
+                timeout=timeout
+            )
+            response.raise_for_status()
+            return response
+            
+        except requests.Timeout:
+            if attempt == max_retries - 1:
+                raise
+            logger.warning(f"Timeout na tentativa {attempt + 1}/{max_retries}")
+            
+        except requests.RequestException as e:
+            if attempt == max_retries - 1:
+                raise
+            logger.warning(
+                f"Erro na tentativa {attempt + 1}/{max_retries}: {str(e)}"
+            )
 
-            if show_table and not df.empty:
-                table_content = [
-                    display_results_table(df, lang=lang),
-                    html.Hr(),
-                    html.H5(t["progress"]),
-                    html.Ul([html.Li(w) for w in warnings]) if warnings else html.P(t["no_warnings"])
-                ]
+# --- Callbacks ---
 
-            if show_graphic and not df.empty:
-                df_graph = df.copy()
-                df_graph["date"] = pd.to_datetime(df_graph["date"]).dt.strftime("%d/%m/%Y")
-                df_graph = df_graph.round(2)
+@callback(
+    Output("results-section", "children"),
+    Output("results-section", "style"),
+    Output("progress-output", "children"),
+    Output("eto-result-data", "data"),
+    Output("eto-warnings-data", "data"),
+    Input("calculate-eto-button", "n_clicks"),
+    State("eto-selected-coordinates", "data"),
+    State("data-source", "value"),
+    State("date-range", "start_date"),
+    State("date-range", "end_date"),
+    State('eto-language-store', 'data'),
+    prevent_initial_call=True
+)
+def execute_eto_calculation(
+    n_clicks: int,
+    coords: dict,
+    data_source: str,
+    start_date: str,
+    end_date: str,
+    lang: str
+) -> tuple:
+    """
+    Executa o cálculo de ETo via API e renderiza os resultados.
+    
+    Args:
+        n_clicks: Número de cliques no botão
+        coords: Coordenadas selecionadas
+        data_source: Fonte dos dados
+        start_date: Data inicial
+        end_date: Data final
+        lang: Código do idioma
+        
+    Returns:
+        tuple: (layout, estilo, progresso, dados, avisos)
+    """
+    if not n_clicks:
+        return no_update
 
-                if graphic_type == "eto_vs_temp":
-                    fig = plot_eto_vs_temperature(df_graph, lang=lang)
-                elif graphic_type == "eto_vs_rad":
-                    fig = plot_eto_vs_radiation(df_graph, lang=lang)
-                elif graphic_type == "temp_rad_prec":
-                    fig = plot_temp_rad_prec(df_graph, lang=lang)
-                elif graphic_type == "heatmap":
-                    fig = plot_heatmap(df_graph, lang=lang)
-                elif graphic_type == "correlation":
-                    corr_var_input = dcc.Dropdown(
-                        id="corr-var",
-                        options=[{"label": t.get(col.lower(), col), "value": col} for col in df_graph.drop(columns=["date", "ETo", "PRECTOTCORR"]).columns],
-                        value=df_graph.drop(columns=["date", "ETo", "PRECTOTCORR"]).columns[0]
-                    )
-                    corr_var_style = {"display": "block"}
-                    fig = plot_correlation(df_graph, corr_var_input.value, lang=lang)
+    t = get_translations_cached(lang)
+    
+    # Validação de entrada
+    is_valid, error_msg = EToState.validate_coordinates(coords)
+    if not is_valid:
+        return (
+            no_update,
+            {'display': 'none'},
+            dbc.Alert(f"{t['invalid_coords']}: {error_msg}", color="danger"),
+            None,
+            None
+        )
+    
+    is_valid, error_msg = EToState.validate_dates(start_date, end_date)
+    if not is_valid:
+        return (
+            no_update,
+            {'display': 'none'},
+            dbc.Alert(f"{t['invalid_dates']}: {error_msg}", color="danger"),
+            None,
+            None
+        )
+    
+    # Prepara parâmetros
+    params = {
+        "lat": coords['lat'],
+        "lng": coords['lng'],
+        "elev": coords['elev'],
+        "database": data_source,
+        "start_date": start_date,
+        "end_date": end_date
+    }
+    
+    try:
+        # Faz a chamada à API
+        response = call_api_with_retry("/api/calculate_eto", params=params)
+        result_data = response.json()
 
-                mean_eto = df_graph["ETo"].mean().round(2)
-                table_content.append(html.P(f"**{t['mean_eto']}:** {mean_eto} mm/day"))
-
-            if not df.empty:
-                stats_content = [
-                    display_daily_data(df, lang=lang),
-                    html.Hr(),
-                    display_descriptive_stats(df, lang=lang),
-                    html.Hr(),
-                    display_normality_test(df, lang=lang),
-                    html.Hr(),
-                    display_correlation_matrix(df, lang=lang),
-                    html.Hr(),
-                    display_eto_summary(df, lang=lang),
-                    html.Hr(),
-                    display_trend_analysis(df, lang=lang),
-                    html.Hr(),
-                    display_seasonality_test(df, lang=lang),
-                    html.Hr(),
-                    display_cumulative_distribution(df, lang=lang)
-                ]
-
+        if "error" in result_data:
             return (
-                table_content,
-                fig,
-                corr_var_input,
-                corr_var_style,
-                html.Ul([html.Li(p) for p in progress_content]) if progress_content else html.P(t["no_warnings"]),
-                eto_result,
-                eto_warnings,
-                stats_content
+                no_update,
+                {'display': 'none'},
+                dbc.Alert(f"Erro: {result_data['error']}", color="danger"),
+                None,
+                None
             )
 
-        except Exception as e:
-            logger.error(f"Erro ao atualizar resultados: {str(e)}")
-            progress_content.append(html.P(f"{t['error']}: {str(e)}"))
-            return table_content, fig, corr_var_input, corr_var_style, html.Ul([html.Li(p) for p in progress_content]), [], [], []
+        df = pd.DataFrame(result_data.get("data", []))
+        warnings = result_data.get("warnings", [])
 
-    return table_content, fig, corr_var_input, corr_var_style, html.P(t["no_warnings"]), [], [], []
+        if df.empty:
+            return (
+                no_update,
+                {'display': 'none'},
+                dbc.Alert(t["no_data_found"], color="info"),
+                None,
+                None
+            )
 
+        # Cria o layout dos resultados
+        results_layout = create_results_layout(df, t, warnings)
+        return (
+            results_layout,
+            {'display': 'block'},
+            [dbc.Alert(w, color="warning") for w in warnings],
+            df.to_dict('records'),
+            warnings
+        )
+
+    except requests.RequestException as e:
+        return no_update, {'display': 'none'}, dbc.Alert(t["api_connection_error"], color="danger"), None, None
+    except Exception as e:
+        error_msg = f"{t['unexpected_error']}: {str(e)}"
+        logger.error(f"Erro não esperado no cálculo: {error_msg}")
+        return (
+            no_update,
+            {'display': 'none'},
+            dbc.Alert(error_msg, color="danger"),
+            None,
+            None
+        )
+
+
+def create_results_layout(df: pd.DataFrame, t: dict, warnings: list) -> html.Div:
+    """
+    Cria o layout da seção de resultados.
+    
+    Args:
+        df: DataFrame com os resultados
+        t: Dicionário de traduções
+        warnings: Lista de avisos
+        
+    Returns:
+        html.Div: Layout da seção de resultados
+    """
+    return html.Div([
+        html.Hr(),
+        html.H3(t["results_location"], className="mt-4 mb-4 text-primary"),
+        dcc.Tabs(id="results-tabs", children=[
+            create_visualization_tab(t),
+            create_statistics_tab(t)
+        ])
+    ])
+
+
+def create_visualization_tab(t: dict) -> dcc.Tab:
+    """
+    Cria a aba de visualização com tabelas e gráficos.
+    
+    Args:
+        t: Dicionário de traduções
+        
+    Returns:
+        dcc.Tab: Aba de visualização
+    """
+    return dcc.Tab(
+        label=t["table_and_graphs"],
+        children=[
+            # Controles de visualização
+            dbc.Row([
+                dbc.Col(
+                    dbc.Checklist(
+                        id="show-table-checklist",
+                        options=[{"label": t["show_table"], "value": "show"}],
+                        value=['show']
+                    ),
+                    width="auto"
+                ),
+                dbc.Col(
+                    dbc.Checklist(
+                        id="show-graph-checklist",
+                        options=[{"label": t["show_graphic"], "value": "show"}],
+                        value=['show']
+                    ),
+                    width="auto"
+                ),
+            ], className="mt-3"),
+            
+            # Contêineres de conteúdo
+            dbc.Row([
+                dbc.Col(html.Div(id="table-container"), md=6),
+                dbc.Col(html.Div(id="graph-container"), md=6),
+            ], className="mt-3"),
+            
+            # Botões de download
+            create_download_buttons(t)
+        ]
+    )
+
+
+def create_statistics_tab(t: dict) -> dcc.Tab:
+    """
+    Cria a aba de análises estatísticas.
+    
+    Args:
+        t: Dicionário de traduções
+        
+    Returns:
+        dcc.Tab: Aba de estatísticas
+    """
+    return dcc.Tab(
+        label=t["statistical_analysis"],
+        children=[html.Div(id="stats-container", className="mt-3")]
+    )
+
+
+def create_download_buttons(t: dict) -> dbc.Row:
+    """
+    Cria os botões de download.
+    
+    Args:
+        t: Dicionário de traduções
+        
+    Returns:
+        dbc.Row: Linha com botões de download
+    """
+    return dbc.Row(
+        dbc.Col(
+            html.Div([
+                dbc.Button(
+                    t["download_csv"],
+                    id="download-csv-button",
+                    color="secondary",
+                    outline=True,
+                    size="sm",
+                    className="me-2"
+                ),
+                dbc.Button(
+                    t["download_excel"],
+                    id="download-excel-button",
+                    color="secondary",
+                    outline=True,
+                    size="sm"
+                ),
+                dcc.Download(id="download-csv"),
+                dcc.Download(id="download-excel"),
+            ]),
+            width=12,
+            className="mt-3"
+        )
+    )
+
+
+# Callback 3: Renderiza o conteúdo da aba de Tabela e Gráficos
+@callback(
+    Output("table-container", "children"),
+    Output("graph-container", "children"),
+    Input("show-table-checklist", "value"),
+    Input("show-graph-checklist", "value"),
+    State("eto-result-data", "data"),
+    State('eto-language-store', 'data')
+)
+def render_table_and_graph_content(
+    show_table: list,
+    show_graph: list,
+    eto_data: dict,
+    lang: str
+) -> tuple:
+    """
+    Renderiza a tabela e a seção de gráficos com base nos checklists.
+    
+    Args:
+        show_table: Lista com 'show' se tabela deve ser exibida
+        show_graph: Lista com 'show' se gráfico deve ser exibido
+        eto_data: Dados dos resultados
+        lang: Código do idioma
+        
+    Returns:
+        tuple: (conteúdo da tabela, conteúdo do gráfico)
+    """
+    if not eto_data: return no_update, no_update
+    
+    t = get_translations_cached(lang)
+    df = pd.DataFrame(eto_data)
+
+    table_content = display_results_table(df, lang=lang) if show_table else None
+    
+    graph_content = None
+    if show_graph:
+        graph_options = [
+            {"label": t["eto_vs_temp"], "value": "eto_vs_temp"},
+            {"label": t["eto_vs_rad"], "value": "eto_vs_rad"},
+            {"label": t["temp_rad_prec"], "value": "temp_rad_prec"},
+            {"label": t["heatmap"], "value": "heatmap"},
+            {"label": t["correlation"], "value": "correlation"}
+        ]
+        graph_content = html.Div([
+            dcc.Dropdown(id="graphic-type-dropdown", options=graph_options, value="eto_vs_temp", clearable=False),
+            dcc.Graph(id="main-graph-output", className="mt-2")
+        ])
+        
+    return table_content, graph_content
+
+
+# Callback 4: Atualiza o gráfico principal com base na seleção do dropdown
+@callback(
+    Output("main-graph-output", "figure"),
+    Input("graphic-type-dropdown", "value"),
+    State("eto-result-data", "data"),
+    State('eto-language-store', 'data')
+)
+def update_main_graph(graph_type, eto_data, lang):
+    """Atualiza a figura do gráfico com base na opção selecionada."""
+    if not eto_data: return go.Figure()
+
+    df = pd.DataFrame(eto_data)
+    
+    plot_functions = {
+        "eto_vs_temp": plot_eto_vs_temperature,
+        "eto_vs_rad": plot_eto_vs_radiation,
+        "temp_rad_prec": plot_temp_rad_prec,
+        "heatmap": plot_heatmap,
+        "correlation": plot_correlation
+    }
+    
+    plot_function = plot_functions.get(graph_type)
+    if plot_function:
+        if graph_type == 'correlation':
+            default_corr_var = df.columns.drop(['date', 'ETo'])[0]
+            return plot_function(df, default_corr_var, lang=lang)
+        return plot_function(df, lang=lang)
+        
+    return go.Figure()
+
+
+# Callback 5: Renderiza o conteúdo da aba de Análise Estatística
+@callback(
+    Output("stats-container", "children"),
+    Input("results-tabs", "active_tab"),
+    State("eto-result-data", "data"),
+    State('eto-language-store', 'data')
+)
+def render_stats_tab_content(active_tab, eto_data, lang):
+    """Renderiza o conteúdo da aba de estatísticas quando ela é selecionada."""
+    if active_tab != "tab-1" or not eto_data: return None
+        
+    t = get_translations_cached(lang)
+    df = pd.DataFrame(eto_data)
+    
+    return html.Div([
+        dbc.Row([
+            dbc.Col(display_descriptive_stats(df, lang=lang), md=6),
+            dbc.Col(display_normality_test(df, lang=lang), md=6),
+        ], className="mb-4"),
+        dbc.Row([dbc.Col(display_correlation_matrix(df, lang=lang))], className="mb-4"),
+        dbc.Row([dbc.Col(display_eto_summary(df, lang=lang))])
+    ])
+
+
+# Callback 6: Lógica para download de dados
 @callback(
     Output("download-csv", "data"),
     Output("download-excel", "data"),
     Input("download-csv-button", "n_clicks"),
     Input("download-excel-button", "n_clicks"),
-    State("eto_result", "data"),
-    State("language-selector", "value"),
+    State("eto-result-data", "data"),
+    State('eto-language-store', 'data'),
     prevent_initial_call=True
 )
-def download_data(csv_clicks, excel_clicks, eto_result, lang):
-    t = get_translations(lang)
-    
-    if not eto_result:
-        logger.warning("Tentativa de download sem dados disponíveis")
-        return None, None
+def download_data(csv_clicks, excel_clicks, eto_data, lang):
+    """Gera e envia os arquivos de dados para download."""
+    if not eto_data: return None, None
 
+    t = get_translations_cached(lang)
+    df = pd.DataFrame(eto_data)
+    
+    df["date"] = pd.to_datetime(df["date"]).dt.strftime("%d/%m/%Y")
+    df = df.round(2).rename(columns={
+        "date": t["date"], "T2M_MAX": t["temp_max"], "T2M_MIN": t["temp_min"],
+        "RH2M": t["humidity"], "WS2M": t["wind_speed"], "ALLSKY_SFC_SW_DWN": t["radiation"],
+        "PRECTOTCORR": t["precipitation"], "ETo": t["eto"]
+    })
+
+    ctx = dash.callback_context
+    if not ctx.triggered: return None, None
+    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    if button_id == "download-csv-button":
+        return dcc.send_data_frame(df.to_csv, "eto_results.csv", index=False), None
+    elif button_id == "download-excel-button":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="ETo Results")
+        return None, dict(content=output.getvalue(), filename="eto_results.xlsx")
+    
+    return None, None
+
+# --- INÍCIO DA SEÇÃO DE CALLBACKS ADICIONAIS ---
+
+# Callback 7: Renderiza a UI de entrada de coordenadas (Global vs. MATOPIBA)
+@callback(
+    Output("coord-input-section", "children"),
+    Input("calculation-mode", "value"),
+    State('eto-language-store', 'data')
+)
+def render_coord_input_section(mode, lang):
+    """Renderiza a interface correta para selecionar a localização."""
+    t = get_translations_cached(lang)
+    if mode == "Global":
+        return html.Div([
+            dbc.RadioItems(
+                id="coord-option-global",
+                options=[
+                    {"label": t["click_to_select"], "value": "click"},
+                    {"label": t["adjust_manually"], "value": "manual"}
+                ],
+                value="click",
+            ),
+            # Mapa ou inputs manuais serão renderizados aqui por outro callback
+            html.Div(id="coord-input-dynamic-global")
+        ])
+    else: # MATOPIBA
+        df, _ = load_matopiba_data(lang)
+        states = sorted(df["UF"].unique()) if not df.empty else []
+        return html.Div([
+            dcc.Dropdown(id="matopiba-state", options=states, placeholder=t["choose_state"]),
+            dcc.Dropdown(id="matopiba-city", placeholder=t["choose_city"], className="mt-2")
+        ])
+
+# Callback 8: Renderiza dinamicamente o mapa ou os inputs manuais para o modo Global
+@callback(
+    Output("coord-input-dynamic-global", "children"),
+    Input("coord-option-global", "value"),
+    State('eto-language-store', 'data')
+)
+def render_global_coord_input(option, lang):
+    t = get_translations_cached(lang)
+    if option == 'click':
+        return dcc.Graph(
+            id='global-map',
+            figure=create_interactive_map(t), # Sua função que cria o mapa
+            style={'height': '400px'}
+        )
+    else: # manual
+        return dbc.Row([
+            dbc.Col(dbc.Input(id="manual-lat", type="number", placeholder=t["latitude"])),
+            dbc.Col(dbc.Input(id="manual-lng", type="number", placeholder=t["longitude"])),
+        ], className="mt-2")
+
+
+# Callback 9: Atualiza o dropdown de cidades quando um estado é selecionado
+@callback(
+    Output("matopiba-city", "options"),
+    Output("matopiba-city", "value"),
+    Input("matopiba-state", "value"),
+    State('eto-language-store', 'data')
+)
+def update_city_dropdown(state, lang):
+    """Filtra as cidades com base no estado selecionado no modo MATOPIBA."""
+    if not state:
+        return [], None
+    df, _ = load_matopiba_data(lang)
+    cities = sorted(df[df["UF"] == state]["CITY"].unique())
+    return [{"label": city, "value": city} for city in cities], None
+
+
+# Callback 10: Callback central para atualizar as coordenadas selecionadas
+@callback(
+    Output('eto-selected-coordinates', 'data', allow_duplicate=True),
+    Input('global-map', 'clickData'),
+    Input('manual-lat', 'value'),
+    Input('manual-lng', 'value'),
+    Input('matopiba-city', 'value'),
+    State('calculation-mode', 'value'),
+    State("matopiba-state", "value"),
+    prevent_initial_call=True
+)
+def update_selected_coordinates(
+    click_data: dict,
+    manual_lat: float,
+    manual_lng: float,
+    city: str,
+    mode: str,
+    state: str
+) -> dict:
+    """
+    Atualiza as coordenadas com base na interação do usuário.
+    
+    Args:
+        click_data: Dados do clique no mapa
+        manual_lat: Latitude inserida manualmente
+        manual_lng: Longitude inserida manualmente
+        city: Cidade selecionada (modo MATOPIBA)
+        mode: Modo de cálculo
+        state: Estado selecionado (modo MATOPIBA)
+        
+    Returns:
+        dict: Coordenadas atualizadas ou no_update
+    """
+    ctx = dash.callback_context
+    triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    coords = None
     try:
-        df = pd.DataFrame(eto_result)
-        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%d/%m/%Y")
-        df = df[["date", "T2M_MAX", "T2M_MIN", "RH2M", "WS2M", "ALLSKY_SFC_SW_DWN", "PRECTOTCORR", "ETo"]]
-        df = df.round(2).rename(columns={
-            "date": t["date"],
-            "T2M_MAX": t["temp_max"],
-            "T2M_MIN": t["temp_min"],
-            "RH2M": t["humidity"],
-            "WS2M": t["wind_speed"],
-            "ALLSKY_SFC_SW_DWN": t["radiation"],
-            "PRECTOTCORR": t["precipitation"],
-            "ETo": t["eto"]
-        })
+        if triggered_id == 'global-map' and click_data:
+            # Extrai coordenadas do clique no mapa
+            point = click_data['points'][0]
+            lat, lng = point['lat'], point['lon']
+            coords = get_coordinates_with_elevation(lat, lng)
 
-        ctx = dash.callback_context
-        if not ctx.triggered:
-            return None, None
+        elif triggered_id in ['manual-lat', 'manual-lng']:
+            if manual_lat is not None and manual_lng is not None:
+                # Valida e busca elevação para coordenadas manuais
+                coords = get_coordinates_with_elevation(
+                    manual_lat,
+                    manual_lng
+                )
 
-        button_id = ctx.triggered[0]["prop_id"].split(".")[0]
-        if button_id == "download-csv-button":
-            logger.info("Download de CSV iniciado")
-            return dcc.send_data_frame(df.to_csv, "table_eto_results.csv", index=False), None
-        elif button_id == "download-excel-button":
-            logger.info("Download de Excel iniciado")
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine="openpyxl") as writer:
-                df.to_excel(writer, sheet_name="ET₀ Results", index=False)
-            excel_data = output.getvalue()
-            return None, dict(content=excel_data, filename="table_eto_results.xlsx", type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        elif triggered_id == 'matopiba-city' and city and state:
+            # Carrega dados do MATOPIBA
+            df, _ = load_matopiba_data()
+            city_data = df[
+                (df["UF"] == state) & (df["CITY"] == city)
+            ].iloc[0]
+            
+            coords = {
+                'lat': city_data['LATITUDE'],
+                'lng': city_data['LONGITUDE'],
+                'elev': city_data['HEIGHT']
+            }
 
-        return None, None
-
+        if coords:
+            # Valida coordenadas antes de retornar
+            is_valid, error_msg = EToState.validate_coordinates(coords)
+            if is_valid:
+                logger.info(f"Coordenadas atualizadas: {coords}")
+                return coords
+            else:
+                logger.error(f"Coordenadas inválidas: {error_msg}")
+                
     except Exception as e:
-        logger.error(f"Erro ao processar download: {str(e)}")
-        return None, None
-
-@callback(
-    Output("deficit-chart-output", "children"),
-    Output("balance-chart-output", "children"),
-    Input("deficit-chart-checklist", "value"),
-    Input("balance-chart-checklist", "value"),
-    State("eto_result", "data"),
-    State("language-selector", "value"),
-    prevent_initial_call=True
-)
-def update_eto_summary_charts(deficit_checklist, balance_checklist, eto_result, lang):
-    t = get_translations(lang)
-    if not eto_result:
-        return html.P(t["no_data"]), html.P(t["no_data"])
-
-    df = pd.DataFrame(eto_result)
-    summary_content = display_eto_summary(df, lang=lang)
+        logger.error(f"Erro ao atualizar coordenadas: {str(e)}")
     
-    deficit_output = [dcc.Graph(id="deficit-chart", figure=summary_content.children[-4].figure)] if "show_deficit" in deficit_checklist else []
-    balance_output = [dcc.Graph(id="balance-chart", figure=summary_content.children[-2].figure)] if "show_balance" in balance_checklist else []
-    
-    return deficit_output, balance_output
+    return no_update
 
+
+def get_coordinates_with_elevation(lat: float, lng: float) -> Optional[dict]:
+    """
+    Busca elevação para um par de coordenadas.
+    
+    Args:
+        lat: Latitude
+        lng: Longitude
+        
+    Returns:
+        dict: Coordenadas com elevação ou None se houver erro
+    """
+    try:
+        response = call_api_with_retry(
+            "/api/get_elevation",
+            params={"lat": lat, "lng": lng}
+        )
+        elev = response.json().get("data", {}).get("elevation")
+        
+        if elev is not None:
+            return {'lat': lat, 'lng': lng, 'elev': elev}
+            
+    except requests.RequestException as e:
+        logger.error(f"Erro ao buscar elevação: {str(e)}")
+        
+    return None
+
+
+# Callback 11: Exibe os parâmetros selecionados para o usuário confirmar
 @callback(
-    Output("progress-output", "children", allow_duplicate=True),
-    Input("download-csv", "data"),
-    Input("download-excel", "data"),
-    State("language-selector", "value"),
-    prevent_initial_call=True
+    Output('params-display', 'children'),
+    Input('eto-selected-coordinates', 'data'),
+    Input('data-source', 'value'),
+    Input('date-range', 'start_date'),
+    Input('date-range', 'end_date'),
+    State('eto-language-store', 'data')
 )
-def update_download_progress(csv_data, excel_data, lang):
-    t = get_translations(lang)
-    if csv_data or excel_data:
-        return html.P(t["download_started"])
-    return dash.no_update
+def display_selected_parameters(coords, source, start_date, end_date, lang):
+    """Mostra um resumo dos parâmetros selecionados antes do cálculo."""
+    t = get_translations_cached(lang)
+    if not coords:
+        return t["select_location_prompt"]
+    
+    lines = [
+        f"Lat: {coords.get('lat', 0):.4f}, Lng: {coords.get('lng', 0):.4f}, Elev: {coords.get('elev', 0):.0f}m",
+        f"{t['database']}: {source or '...'}",
+        f"{t['period']}: {start_date} a {end_date}"
+    ]
+    return [html.P(line, className="mb-0") for line in lines]
+
+
+# Callback 12: Habilita/desabilita o botão de cálculo
+@callback(
+    Output('calculate-eto-button', 'disabled'),
+    Input('eto-selected-coordinates', 'data'),
+    Input('data-source', 'value'),
+    Input('date-range', 'start_date'),
+    Input('date-range', 'end_date'),
+)
+def toggle_calculate_button(coords, source, start_date, end_date):
+    """Habilita o botão de cálculo apenas quando todos os parâmetros são válidos."""
+    return not all([coords, source, start_date, end_date])
+
+# --- FIM DA SEÇÃO DE CALLBACKS ADICIONAIS ---

@@ -1,8 +1,193 @@
+# EVAonline: An online tool for reference EVApotranspiration estimation
+
 <p align="center">
-  <img src="docs/images/evaonline_logo.png" alt="EVAonline Logo" width="900">
+  <img src="assets/logo_eva_online.png" alt="EVAonline Logo" width="600">
 </p>
 
-# EVAonline: An online tool for reference EVApotranspiration estimation
+## 🌿 Overview
+
+EVAonline is a comprehensive web application for calculating reference evapotranspiration (ET₀) using meteorological data from multiple sources. Built with modern technologies, it provides interactive dashboards, real-time data processing, and geospatial visualization capabilities.
+
+## 🏗️ Architecture
+
+### Tech Stack
+
+**Frontend & Visualization:**
+- **Dash**: Interactive dashboards and data visualization
+- **Dash Bootstrap Components**: Responsive UI components
+- **dash-leaflet**: Interactive maps with GeoJSON layers and heatmaps
+
+**Backend & APIs:**
+- **FastAPI**: High-performance API server with WebSocket support
+- **Celery**: Asynchronous task processing
+- **Redis**: Caching and message broker (Pub/Sub)
+
+**Database & Storage:**
+- **PostgreSQL + PostGIS**: Geospatial data management
+- **Redis**: High-performance caching layer
+
+**Infrastructure:**
+- **Docker & Docker Compose**: Containerization
+- **Nginx**: Reverse proxy and static file serving
+- **Prometheus + Grafana**: Monitoring and metrics
+- **Render**: Cloud deployment platform
+
+## 📁 Project Structure
+
+```
+EVAonline_ElsevierSoftwareX/
+├── api/                    # FastAPI backend services
+│   ├── main.py            # Main API application
+│   ├── data_service.py    # Data processing endpoints
+│   ├── websocket_service.py # WebSocket connections
+│   └── services/          # Service modules
+├── components/            # Reusable Dash components
+├── database/              # Database configuration and models
+│   ├── connection.py      # Database connection setup
+│   ├── models/           # SQLAlchemy models
+│   └── migrations/       # Database migration scripts
+├── pages/                # Dash page components
+├── src/                  # Core business logic
+├── utils/                # Utility functions
+├── monitoring/           # Prometheus configuration
+├── docker-compose.yml    # Multi-service orchestration
+└── requirements.txt      # Python dependencies
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Python 3.9+
+- Git
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/angelacunhasoares/EVAonline_ElsevierSoftwareX.git
+   cd EVAonline_ElsevierSoftwareX
+   ```
+
+2. **Set up environment variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+3. **Build and run with Docker Compose:**
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **Access the application:**
+   - **Dashboard:** http://localhost:8050
+   - **API Documentation:** http://localhost:8000/docs
+   - **Prometheus:** http://localhost:9090
+   - **Grafana:** http://localhost:3000
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Key configuration options in `.env`:
+
+- `POSTGRES_*`: PostgreSQL database settings
+- `REDIS_*`: Redis cache and broker settings
+- `FASTAPI_*`: API server configuration
+- `DASH_*`: Dashboard application settings
+
+## 📊 Features
+
+### Data Sources
+- **NASA POWER**: Meteorological satellite data
+- **OpenMeteo**: Weather forecasting data
+- **Local Datasets**: MATOPIBA region data, climate shapefiles
+
+### Visualization
+- **Interactive Maps**: GeoJSON layers with OpenStreetMap tiles
+- **Heatmaps**: Kernel density estimation for city distribution
+- **Real-time Updates**: WebSocket-powered live data refresh
+- **Statistical Analysis**: Correlation matrices, trend analysis
+
+### Performance
+- **Redis Caching**: Sub-second response times for repeated queries
+- **Async Processing**: Celery workers for heavy computations
+- **Spatial Indexing**: PostGIS GIST indices for fast geospatial queries
+
+## 🛠️ Development
+
+### Local Development Setup
+
+1. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Run services locally:**
+   ```bash
+   # Start database and cache
+   docker-compose up postgres redis -d
+   
+   # Run API server
+   uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+   
+   # Run Dash app
+   python pages/main.py
+   
+   # Run Celery worker
+   celery -A api.celery_config worker --loglevel=info
+   ```
+
+### API Endpoints
+
+- `GET /api/geo_data`: Retrieve GeoJSON data
+- `WebSocket /ws/geo_data`: Real-time data updates
+- `POST /api/calculate_eto`: Calculate evapotranspiration
+
+## 📈 Monitoring
+
+The application includes comprehensive monitoring:
+
+- **Prometheus Metrics**: API response times, database queries, cache hit rates
+- **Grafana Dashboards**: Visual monitoring of system performance
+- **Application Logs**: Structured logging with Loguru
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See the [LICENSE](LICENSE) file for details.
+
+## 🎯 Citation
+
+If you use EVAonline in your research, please cite:
+
+```bibtex
+@article{evaonline2024,
+  title={EVAonline: An online tool for reference evapotranspiration estimation},
+  author={Your Name},
+  journal={SoftwareX},
+  year={2024}
+}
+```
+
+## 📞 Support
+
+For questions and support:
+- Create an issue in this repository
+- Contact: [your-email@domain.com]
+
+---
+
+Built with ❤️ for the agricultural and environmental research community.
 
 EVAonline is an open-source, browser-based platform for automated calculation of reference evapotranspiration (ET₀) using the FAO-56 Penman-Monteith model. Designed for data-scarce regions like Brazil’s MATOPIBA, it supports precision agriculture and irrigation planning with global applicability. Built with a modern tech stack including **Dash**, **FastAPI**, **Celery**, **Redis**, and **Docker**, EVAonline provides a scalable, efficient, and user-friendly solution for farmers, researchers, and policymakers.
 

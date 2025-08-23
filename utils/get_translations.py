@@ -1,332 +1,53 @@
+import os
+import json
 from typing import Dict
+from loguru import logger
+
+# Cache em memória para armazenar as traduções já carregadas
+_translations_cache = {}
+
 
 def get_translations(lang: str = "pt") -> Dict[str, str]:
     """
-    Returns a dictionary of translations for the specified language.
+    Carrega as traduções de um arquivo JSON correspondente ao idioma,
+    com cache em memória para otimizar o desempenho.
+
+    Esta função espera que exista uma pasta 'translations' na raiz do projeto
+    contendo os arquivos, como 'translations/pt.json' e 'translations/en.json'.
 
     Args:
-        lang (str): Language code ('pt' for Portuguese, 'en' for English).
+        lang (str): O código do idioma (ex: 'pt', 'en').
 
     Returns:
-        Dict[str, str]: Dictionary of translations.
-
-    Example:
-        >>> translations = get_translations("en")
-        >>> print(translations["calculate_eto"])
-        'Calculate ETo'
+        Dict[str, str]: Um dicionário contendo os textos traduzidos.
     """
-    translations = {
-        "pt": {
-            # Interface principal
-            "calculate_eto": "Calcular ETo",
-            "instructions": "Instruções para Calcular ETo",
-            "instruction_1": "1. Escolha o modo de cálculo (Global ou MATOPIBA).",
-            "instruction_2": "2. Defina as coordenadas ou selecione uma cidade.",
-            "instruction_3": "3. Escolha a base de dados e o período.",
-            "instruction_4": "4. Confirme os parâmetros e calcule a ETo.",
-            "calculation_mode": "Modo de Cálculo",
-            "global_mode": "Global: calcular com coordenadas do mapa",
-            "matopiba_mode": "MATOPIBA: calcular para uma cidade específica",
-            "select_mode": "Selecione o Modo de Cálculo",
-            "confirmation_params": "Confirmação dos Parâmetros",
-            "database": "Base de Dados",
-            "start_date": "Data Inicial",
-            "end_date": "Data Final",
-            "state": "Estado",
-            "city": "Cidade",
-            "latitude": "Latitude",
-            "longitude": "Longitude",
-            "elevation": "Altitude",
-            "cancel": "Cancelar",
-            "confirm": "Confirmar",
-            "calculate_eto_button": "Calcular ETo",
-            "results_location": "Resultados para a Localização Selecionada",
-            "table_and_graphs": "Tabela e Gráficos",
-            "stats_results": "Estatísticas dos Resultados",
-            "show_table": "Tabela",
-            "show_graphic": "Gráficos",
-            "select_graphic_type": "Selecione o tipo de gráfico",
-            "clear_all": "Limpar Tudo",
-            "back_to_home": "Voltar para Home",
-            "click_to_select": "Clicar no mapa para selecionar",
-            "adjust_manually": "Ajustar Manualmente",
-            "choose_state": "Escolha o estado",
-            "choose_city": "Escolha a cidade",
-            "coords_captured": "Coordenadas capturadas",
-            "choose_database": "Selecione uma base",
+    # 1. Verifica se a tradução já está no cache para evitar ler o arquivo novamente
+    if lang in _translations_cache:
+        return _translations_cache[lang]
 
-            # Colunas de dados
-            "date": "Data",
-            "temp_max": "Temperatura Máxima (°C)",
-            "temp_min": "Temperatura Mínima (°C)",
-            "humidity": "Umidade Relativa (%)",
-            "wind_speed": "Velocidade do Vento (m/s)",
-            "radiation": "Radiação Solar (MJ/m²/dia)",
-            "precipitation": "Precipitação Total (mm)",
-            "eto": "ETo (mm/dia)",
-            "temperature": "Temperatura (°C)",
-
-            # Gráficos
-            "eto_vs_temp": "ETo vs. Temperatura",
-            "eto_vs_rad": "ETo vs. Radiação",
-            "temp_rad_prec": "ETo vs. Temp vs. Rad vs. Prec",
-            "heatmap": "Mapa de Calor",
-            "correlation": "Correlação",
-            "stacked_timeseries": "Séries Temporais Empilhadas",
-            "boxplot": "Boxplot",
-            "3d_scatter": "Dispersão 3D",
-            "period_comparison": "Comparação por Período",
-            "period": "Período",
-            "trend_line": "Linha de Tendência",
-            "legend": "Legenda",
-
-            # Análises estatísticas
-            "statistical_analysis": "Análise Estatística",
-            "daily_data": "Dados climáticos diários com ETo",
-            "descriptive_stats": "Estatísticas Descritivas",
-            "normality_test": "Teste de Normalidade (Shapiro-Wilk)",
-            "normality_note": "Nota: p-valor < 0.05 indica que os dados não seguem distribuição normal.",
-            "correlation_matrix": "Matriz de Correlação",
-            "eto_summary": "Resumo de ET₀",
-            "total_eto": "Soma Total de ET₀",
-            "water_deficit": "Déficit Hídrico (mm/dia)",
-            "mean_deficit": "Déficit Hídrico Médio",
-            "total_deficit": "Déficit Hídrico Total",
-            "deficit_negative": "Déficit < 0 (falta de água)",
-            "deficit_positive": "Déficit > 0 (excesso de água)",
-            "days": "dias",
-            "show_deficit_chart": "Mostrar Gráfico de Déficit Hídrico",
-            "show_balance_chart": "Mostrar Balanço Hídrico Acumulado",
-            "deficit_note": "Nota: Áreas vermelhas indicam falta de água (déficit < 0); azuis indicam excesso de água (déficit > 0).",
-            "trend_analysis": "Análise de Tendência",
-            "eto_trend": "Tendência da ET₀",
-            "per_day": "por dia",
-            "seasonality_test": "Teste de Estacionalidade (ADF)",
-            "adf_test": "Teste de Estacionalidade (ADF)",
-            "cumulative_distribution": "Distribuição Acumulada",
-            "cumulative_eto": "ET₀ Acumulada",
-            "cumulative_precipitation": "Precipitação Acumulada",
-            "statistic": "Estatística",
-            "variable": "Variável",
-            "mean": "Média",
-            "max": "Máximo",
-            "min": "Mínimo",
-            "median": "Mediana",
-            "std_dev": "Desvio Padrão",
-            "percentile_25": "Percentil 25º",
-            "percentile_75": "Percentil 75º",
-            "coef_variation": "Coef. de Variação (%)",
-            "skewness": "Assimetria",
-            "kurtosis": "Curtose",
-            "p_value": "p-valor",
-            "component": "Componente",
-            "value": "Valor",
-
-            # Downloads
-            "download_csv": "Download CSV",
-            "download_excel": "Download Excel",
-            "download_started": "Download iniciado",
-
-            # Mensagens de status e erros
-            "no_warnings": "Nenhum aviso",
-            "error": "Erro",
-            "mean_eto": "ETo Médio",
-            "calculating": "Calculando ETo...",
-            "progress": "Progresso",
-            "calculate_first": "Calcule a ETo primeiro",
-            "no_data": "Nenhum dado disponível",
-            "no_database_selected": "⚠️ Por favor, selecione uma base de dados.",
-            "no_dates_selected": "⚠️ Por favor, selecione ambas as datas.",
-            "invalid_date_range": "⚠️ A Data Final não pode ser inferior à Data Inicial.",
-            "invalid_period": "⚠️ O período deve estar entre 7 e 15 dias. Selecionado: {} dias.",
-            "date_too_old": "⚠️ A Data Inicial não pode ser anterior a {}.",
-            "date_too_future": "⚠️ A Data Final não pode ser posterior a {}.",
-            "valid_period": "✅ Período válido: {} dias",
-            "invalid_date_format": "⚠️ Formato de data inválido: {}",
-            "loaded_from_cache": "Dados do MATOPIBA carregados do cache",
-            "redis_error": "Falha ao acessar o cache Redis: {}",
-            "csv_not_found": "Arquivo CSV do MATOPIBA não encontrado em {}",
-            "empty_dataframe": "DataFrame do MATOPIBA está vazio após carregamento.",
-            "redis_save_error": "Falha ao salvar DataFrame do MATOPIBA no cache Redis: {}",
-            "load_error": "Erro ao carregar DataFrame do MATOPIBA: {}",
-            "invalid_mode": "Modo inválido: {}. Escolha 'Global' ou 'MATOPIBA'.",
-            "no_coords_global": "Latitude ou longitude não fornecidas para o modo Global.",
-            "no_coords_matopiba": "Latitude ou longitude não fornecidas para o modo MATOPIBA (coordenadas manuais).",
-            "no_matching_city": "Nenhuma cidade correspondente a '{}' no estado '{}' para o modo MATOPIBA.",
-
-            # Traduções específicas do main.py
-            "choose_map": "Escolher Mapa",
-            "map_options": ["MATOPIBA", "Piracicaba", "Global"],
-            "no_map_selected": "Nenhum mapa selecionado",
-            "map_desc_interactive": "Mapa interativo para selecionar coordenadas",
-            "legend": "Legenda",
-            "legend_map1_cities": "Cidades do MATOPIBA",
-            "legend_map1_zoom": "Aumentar zoom para detalhes",
-            "perimeter": "Perímetro",
-            "source": "Fonte",
-            "map_source_all_cities": "Dados do MATOPIBA",
-            "map2_desc": "Mapa da cidade de Piracicaba",
-            "legend_map2_city": "Cidade de Piracicaba",
-            "legend_map2_perimeter": "Perímetro da cidade",
-            "legend_map4_global": "Mapa global interativo",
-            "error_elevation": "Erro ao obter elevação",
-            "no_coords_selected": "Nenhuma coordenada selecionada"
-        },
-        "en": {
-            # Interface principal
-            "calculate_eto": "Calculate ETo",
-            "instructions": "Instructions for Calculating ETo",
-            "instruction_1": "1. Choose the calculation mode (Global or MATOPIBA).",
-            "instruction_2": "2. Define the coordinates or select a city.",
-            "instruction_3": "3. Choose the data source and period.",
-            "instruction_4": "4. Confirm the parameters and calculate ETo.",
-            "calculation_mode": "Calculation Mode",
-            "global_mode": "Global: calculate with map coordinates",
-            "matopiba_mode": "MATOPIBA: calculate for a specific city",
-            "select_mode": "Select Calculation Mode",
-            "confirmation_params": "Parameter Confirmation",
-            "database": "Database",
-            "start_date": "Start Date",
-            "end_date": "End Date",
-            "state": "State",
-            "city": "City",
-            "latitude": "Latitude",
-            "longitude": "Longitude",
-            "elevation": "Elevation",
-            "cancel": "Cancel",
-            "confirm": "Confirm",
-            "calculate_eto_button": "Calculate ETo",
-            "results_location": "Results for the Selected Location",
-            "table_and_graphs": "Table and Graphs",
-            "stats_results": "Result Statistics",
-            "show_table": "Table",
-            "show_graphic": "Graphs",
-            "select_graphic_type": "Select the graph type",
-            "clear_all": "Clear All",
-            "back_to_home": "Back to Home",
-            "click_to_select": "Click on the map to select",
-            "adjust_manually": "Adjust Manually",
-            "choose_state": "Choose the state",
-            "choose_city": "Choose the city",
-            "coords_captured": "Coordinates captured",
-            "choose_database": "Select a database",
-
-            # Colunas de dados
-            "date": "Date",
-            "temp_max": "Maximum Temperature (°C)",
-            "temp_min": "Minimum Temperature (°C)",
-            "humidity": "Relative Humidity (%)",
-            "wind_speed": "Wind Speed (m/s)",
-            "radiation": "Solar Radiation (MJ/m²/day)",
-            "precipitation": "Total Precipitation (mm)",
-            "eto": "ETo (mm/day)",
-            "temperature": "Temperature (°C)",
-
-            # Gráficos
-            "eto_vs_temp": "ETo vs. Temperature",
-            "eto_vs_rad": "ETo vs. Radiation",
-            "temp_rad_prec": "ETo vs. Temp vs. Rad vs. Prec",
-            "heatmap": "Heatmap",
-            "correlation": "Correlation",
-            "stacked_timeseries": "Stacked Timeseries",
-            "boxplot": "Boxplot",
-            "3d_scatter": "3D Scatter",
-            "period_comparison": "Period Comparison",
-            "period": "Period",
-            "trend_line": "Trend Line",
-            "legend": "Legend",
-
-            # Análises estatísticas
-            "statistical_analysis": "Statistical Analysis",
-            "daily_data": "Daily Weather Data with ETo",
-            "descriptive_stats": "Descriptive Statistics",
-            "normality_test": "Normality Test (Shapiro-Wilk)",
-            "normality_note": "Note: p-value < 0.05 indicates that the data does not follow a normal distribution.",
-            "correlation_matrix": "Correlation Matrix",
-            "eto_summary": "ETo Summary",
-            "total_eto": "Total ETo Sum",
-            "water_deficit": "Water Deficit (mm/day)",
-            "mean_deficit": "Mean Water Deficit",
-            "total_deficit": "Total Water Deficit",
-            "deficit_negative": "Deficit < 0 (water shortage)",
-            "deficit_positive": "Deficit > 0 (water excess)",
-            "days": "days",
-            "show_deficit_chart": "Show Water Deficit Chart",
-            "show_balance_chart": "Show Cumulative Water Balance Chart",
-            "deficit_note": "Note: Red areas indicate water shortage (deficit < 0); blue areas indicate water excess (deficit > 0).",
-            "trend_analysis": "Trend Analysis",
-            "eto_trend": "ETo Trend",
-            "per_day": "per day",
-            "seasonality_test": "Seasonality Test (ADF)",
-            "adf_test": "Seasonality Test (ADF)",
-            "cumulative_distribution": "Cumulative Distribution",
-            "cumulative_eto": "Cumulative ETo",
-            "cumulative_precipitation": "Cumulative Precipitation",
-            "statistic": "Statistic",
-            "variable": "Variable",
-            "mean": "Mean",
-            "max": "Maximum",
-            "min": "Minimum",
-            "median": "Median",
-            "std_dev": "Standard Deviation",
-            "percentile_25": "25th Percentile",
-            "percentile_75": "75th Percentile",
-            "coef_variation": "Coefficient of Variation (%)",
-            "skewness": "Skewness",
-            "kurtosis": "Kurtosis",
-            "p_value": "p-value",
-            "component": "Component",
-            "value": "Value",
-
-            # Downloads
-            "download_csv": "Download CSV",
-            "download_excel": "Download Excel",
-            "download_started": "Download started",
-
-            # Mensagens de status e erros
-            "no_warnings": "No warnings",
-            "error": "Error",
-            "mean_eto": "Mean ETo",
-            "calculating": "Calculating ETo...",
-            "progress": "Progress",
-            "calculate_first": "Calculate ETo first",
-            "no_data": "No data available",
-            "no_database_selected": "⚠️ Please select a database.",
-            "no_dates_selected": "⚠️ Please select both dates.",
-            "invalid_date_range": "⚠️ The End Date cannot be earlier than the Start Date.",
-            "invalid_period": "⚠️ The period must be between 7 and 15 days. Selected: {} days.",
-            "date_too_old": "⚠️ The Start Date cannot be earlier than {}.",
-            "date_too_future": "⚠️ The End Date cannot be later than {}.",
-            "valid_period": "✅ Valid period: {} days",
-            "invalid_date_format": "⚠️ Invalid date format: {}",
-            "loaded_from_cache": "MATOPIBA data loaded from cache",
-            "redis_error": "Failed to access Redis cache: {}",
-            "csv_not_found": "MATOPIBA CSV file not found at {}",
-            "empty_dataframe": "MATOPIBA DataFrame is empty after loading.",
-            "redis_save_error": "Failed to save MATOPIBA DataFrame to Redis cache: {}",
-            "load_error": "Error loading MATOPIBA DataFrame: {}",
-            "invalid_mode": "Invalid mode: {}. Choose 'Global' or 'MATOPIBA'.",
-            "no_coords_global": "Latitude or longitude not provided for Global mode.",
-            "no_coords_matopiba": "Latitude or longitude not provided for MATOPIBA mode (manual coordinates).",
-            "no_matching_city": "No matching city '{}' in state '{}' for MATOPIBA mode.",
-
-            # Traduções específicas do main.py
-            "choose_map": "Choose Map",
-            "map_options": ["MATOPIBA", "Piracicaba", "Global"],
-            "no_map_selected": "No map selected",
-            "map_desc_interactive": "Interactive map for selecting coordinates",
-            "legend": "Legend",
-            "legend_map1_cities": "MATOPIBA Cities",
-            "legend_map1_zoom": "Zoom in for details",
-            "perimeter": "Perimeter",
-            "source": "Source",
-            "map_source_all_cities": "MATOPIBA Data",
-            "map2_desc": "Map of Piracicaba city",
-            "legend_map2_city": "Piracicaba City",
-            "legend_map2_perimeter": "City Perimeter",
-            "legend_map4_global": "Interactive Global Map",
-            "error_elevation": "Error retrieving elevation",
-            "no_coords_selected": "No coordinates selected"
-        }
-    }
-    return translations.get(lang, translations["pt"])
+    # 2. Constrói o caminho para o arquivo JSON de forma dinâmica
+    #    Isso funciona bem localmente e dentro do Docker.
+    #    Certifique-se de que a pasta 'translations' está na raiz do seu projeto.
+    file_path = os.path.join("translations", f"{lang}.json")
+    
+    try:
+        # 3. Abre e carrega o arquivo JSON
+        with open(file_path, "r", encoding="utf-8") as f:
+            translations = json.load(f)
+            _translations_cache[lang] = translations  # Armazena no cache para futuras chamadas
+            logger.info(f"Traduções para '{lang}' carregadas do arquivo: {file_path}")
+            return translations
+            
+    except FileNotFoundError:
+        logger.warning(f"Arquivo de tradução não encontrado para '{lang}' em '{file_path}'. Usando 'pt' como fallback.")
+        # 4. Se o arquivo do idioma solicitado não for encontrado, tenta carregar o português como padrão.
+        if lang != "pt":
+            return get_translations("pt")
+        else:
+            # Se nem o arquivo de português for encontrado, retorna um dicionário vazio para evitar que o app quebre.
+            logger.error("Arquivo de tradução padrão 'pt.json' não encontrado. A interface pode aparecer sem textos.")
+            return {}
+            
+    except json.JSONDecodeError:
+        logger.error(f"Erro de sintaxe no arquivo JSON: {file_path}. Verifique se o JSON é válido.")
+        return {} # Retorna vazio para não quebrar a aplicação

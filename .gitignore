@@ -3,24 +3,179 @@
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# .gitignore
-.venv/
-__pycache__/
-*.pyc
-*.nc
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+### FastAPI & Dash ###
+# Environment variables
+*.env
+.env.*
+!.env.example
+
+### Docker ###
+# Docker volumes and data
+docker-volumes/
+docker-data/
+
+### PostgreSQL ###
+# Database files
+*.sql
+*.dump
+*.backup
+
+# Empty Python files (to prevent accidental commits)
+**/coordinate_callbacks.py
+**/home_layout.py
+**/map_components.py
+
+### Redis ###
+# Redis dump files
+*.rdb
+*.aof
+
+### Celery ###
+# Celery beat schedule file
+celerybeat-schedule
+celerybeat.pid
+
+### Logs ###
 *.log
-*.db
-
-# Projeto EVAonline
-nasa_power_cache/
-openmeteo_cache/
-data/FILE_CSV/
-data/FILE_GEOJSON/
-data/SHAPEFILE_CLIMA_BR/
-.vscode/ 
 logs/
+**/logs/
+app.log
+celery.log
+redis.log
+postgres.log
+nginx.log
+
+### Monitoring ###
+# Prometheus data
+prometheus_data/
+# Grafana data  
+grafana_data/
+
+### Nginx ###
+# Nginx cache
+nginx_cache/
+
+### IDE ###
+.vscode/
+.idea/
+*.swp
+*.swo
+
+### OS ###
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+### Project specific ###
+# Data files
 data/
 data/.cache/
 *.tmp
 *.bak
+temp/
+
+# Archived/backup files  
+*.tar.gz
+*.zip
+*.rar
+
+# Development files
+**/temp.py
+**/temp_*.py
+*_temp.py
+**/*_new.py
+*_new.py
+test_*.py
+*_test.py
+
+# Examples and notebooks
+examples/
+notebooks/
+docs/
+
+# Empty or duplicate files that should not be committed
+**/models.py
+**/scripts.py
+scripts/
+components/maps/
+pages/main_modularized.py
+pages/main_original_backup.py
+pages/*_backup.py
+pages/*_modularized.py
+api/Dockerfile*
+api/entrypoint.sh
+api/celery/
+api/noaa_*.py
+api/gfs_*.py
+api/gsod_*.py
+**/translations/
+templates/template.html
+validation/
+docker-compose.postgres.yml
+api/services/websocket.py
+api/services/nasapower_service.py
+
+# Empty files in general
+**/*_empty.py
+**/*_temp.*
+**/*_old.*
+**/*_backup.*
