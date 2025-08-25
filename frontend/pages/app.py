@@ -3,30 +3,43 @@
 # Este módulo implementa a página principal do aplicativo EVAonline, com:
 - Seleção interativa de mapas e visualização com interface em abas
 - Inglês como idioma padrão com opção de mudar para Português
-- Três mapas diferentes: Mapa Mundial, Mapa das Cidades MATOPIBA e Mapa da Cidade de Piracicaba
+- Três mapas diferentes: 
+- 1) Mapa Mundial Interativo;
+- 2) Mapa de ETo da Região do MATOPIBA, atualizado 3x/dia;
+- 3) Mapa da Cidade de Piracicaba, SP - Brasil.
 - Navegação para outras seções do aplicativo.
 
 A página serve como ponto de entrada para os usuários selecionarem locais e iniciarem
 cálculos de ETo (evapotranspiração de referência).
 """
-
-from dash import Dash, html, dcc
+import dash
+from dash import html, dcc, dependencies
 import dash_bootstrap_components as dbc
+import dash_leaflet as dl
 from prometheus_flask_exporter import PrometheusMetrics
 from dash_extensions import WebSocket
-from src import map_generator (create_interactive_map, map_all_cities, map_piracicaba_city)  # Importa as funções de mapas
+from backend.core.map_results.map_results import map_all_cities, map_piracicaba_city, create_interactive_map
 
-# Configuração do Dash
-app = Dash(__name__, external_stylesheets=[{"href": "assets/styles.css", "rel": "stylesheet"}])
+# Configuração do Dash:
+external_stylesheets = ['frontend/assets/styles/styles.css']
+external_background_gif = ['frontend/assets/images/home_gif.gif']
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 app.title = "EVAonline"
 metrics = PrometheusMetrics(app.server)
+
+# Importar rotas das páginas "ETo Calculator" e "About":
+from backend.api.routes.eto_routes import eto_router
+from backend.api.routes.about_routes import about_router
+
+app.include_router(eto_router)
+app.include_router(about_router)
 
 # Layout da página inicial com tabs DBC e GIF
 app.layout = html.Div([
     # Cabeçalho com GIF
     html.Header(
         style={
-            "backgroundImage": "url('https://media.giphy.com/media/3o7TKTDnHRnS1uXHMk/giphy.gif')",  # Exemplo de GIF (substitua por seu GIF)
+            "backgroundImage": f"url('{external_background_gif[0]}')",
             "backgroundSize": "cover",
             "backgroundPosition": "center",
             "height": "200px",
@@ -82,12 +95,16 @@ app.layout = html.Div([
     dcc.Store(id="map-state", data={"map_type": "global"})
 ])
 
+
+##########################################################################
+
 # Callback para atualizar o conteúdo dos tabs
 @app.callback(
-    [dash.dependencies.Output("tab-content", "children"),
-     dash.dependencies.Output("map-state", "data")],
-    [dash.dependencies.Input("tabs", "active_tab"),
-     dash.dependencies.Input("ws", "message")]
+    [dependencies.Output("tab-content", "children"),
+     dependencies.Output("map-state", "data")],
+    [dependencies.Input("tabs", "active_tab"),
+     dependencies.Input("ws", "message")],
+    prevent_initial_call=True
 )
 def update_tab_content(active_tab, message):
     if active_tab == "tab-matopiba":
@@ -103,8 +120,14 @@ def update_tab_content(active_tab, message):
         center = [0, 0]
         zoom = 2
     
-    heatmap_points = [[point["lat"], point["lon"], point.get("intensity", 1)] for point in (message.get("data", []) if message else [])]
-    map_obj, _, _, map_desc, legend_html = maps.map_all_cities(t, map_type=map_type, heatmap_points=heatmap_points)
+    message_data = message.get("data", []) if message else []
+    heatmap_points = [
+        [point["lat"], point["lon"], point.get("intensity", 1)] 
+        for point in message_data
+    ]
+    map_obj, _, _, map_desc, legend_html = map_all_cities(
+        None, heatmap_points=heatmap_points
+    )
     
     return [
         html.Div([
@@ -123,17 +146,19 @@ def update_tab_content(active_tab, message):
             ], style={"position": "absolute", "right": "10px", "top": "250px", "width": "250px"})
         ]),
         {"map_type": map_type}
-    ], prevent_initial_call=True
+    ]
+
 
 # Callback para alternar idioma (simplificado)
 @app.callback(
-    dash.dependencies.Output("language-toggle", "children"),
-    [dash.dependencies.Input("language-toggle", "n_clicks")]
+    dependencies.Output("language-toggle", "children"),
+    [dependencies.Input("language-toggle", "n_clicks")]
 )
 def toggle_language(n_clicks):
     if n_clicks and n_clicks % 2 == 1:
         return "PORTUGUÊS"
     return "ENGLISH"
+
 
 if __name__ == '__main__':
     app.run_server(debug=True, port=8050)

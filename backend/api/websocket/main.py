@@ -9,8 +9,8 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_client import Counter, Histogram, Gauge
 
 from api.services.database import get_db
-from api.websocket_service import router as websocket_router
-from api.data_service import router as api_router
+from backend.api.websocket.websocket_service import router as websocket_router
+from backend.api.routes.data_service import router as api_router
 
 # Configuração do logger
 logging.basicConfig(

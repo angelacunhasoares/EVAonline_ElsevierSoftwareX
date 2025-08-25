@@ -152,7 +152,11 @@ def calculate_eto(
         logger.error(msg)
         raise
 
-@app.task(bind=True, name='src.eto_calculator.calculate_eto_pipeline')
+
+@app.task(
+    bind=True, 
+    name='backend.core.eto_calculation.eto_calculation.calculate_eto_pipeline'
+)
 async def calculate_eto_pipeline(
     self,
     lat: float,

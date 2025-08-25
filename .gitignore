@@ -26,6 +26,12 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+*.ipynb_checkpoints
+.jupyter/
+
 # PyInstaller
 *.manifest
 *.spec
@@ -68,30 +74,89 @@ venv.bak/
 docker-volumes/
 docker-data/
 
-### PostgreSQL ###
-# Database files
+### Database ###
+# PostgreSQL files
 *.sql
 *.dump
 *.backup
+*.sqlite
+*.sqlite3
 
-# Empty Python files (to prevent accidental commits)
-**/coordinate_callbacks.py
-**/home_layout.py
-**/map_components.py
+# Database directories
+data/db/
+database/data/
 
 ### Redis ###
 # Redis dump files
 *.rdb
 *.aof
+dump.rdb
 
 ### Celery ###
 # Celery beat schedule file
 celerybeat-schedule
 celerybeat.pid
+celerybeat-schedule.db
 
 ### Logs ###
 *.log
 logs/
+log/
+*.log.*
+
+### Data ###
+# Data files and directories
+data/temp/
+data/cache/
+data/processed/
+*.csv
+*.xlsx
+*.xls
+*.parquet
+
+### GIS ###
+# GIS and shapefile temporary files
+*.dbf
+*.prj
+*.sbn
+*.sbx
+*.shp
+*.shx
+*.cpg
+*.qpj
+*.lyr
+*.mxd
+
+### System ###
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+### IDE ###
+# VS Code
+.vscode/
+*.code-workspace
+.history/
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+.idea_modules/
+
+### Temp Files ###
+# Temporary files
+*.swp
+*.swo
+*~
+*.tmp
+*.bak
+*.old
 **/logs/
 app.log
 celery.log
@@ -152,30 +217,62 @@ examples/
 notebooks/
 docs/
 
-# Empty or duplicate files that should not be committed
-**/models.py
-**/scripts.py
-scripts/
-components/maps/
-pages/main_modularized.py
-pages/main_original_backup.py
-pages/*_backup.py
-pages/*_modularized.py
-api/Dockerfile*
-api/entrypoint.sh
-api/celery/
-api/noaa_*.py
-api/gfs_*.py
-api/gsod_*.py
-**/translations/
-templates/template.html
-validation/
-docker-compose.postgres.yml
-api/services/websocket.py
-api/services/nasapower_service.py
+# Keep specific translation files
+!translations/en.json
+!translations/pt.json
+
+# Keep template files
+!templates/custom_layer.html
+
+# Docker specific
+docker/**/data/
+.docker/
+docker-compose.override.yml
+
+# Keep Docker configuration files
+!docker/backend/Dockerfile
+!docker/backend/entrypoint.sh
+!docker/nginx/Dockerfile
+!docker/nginx/nginx.conf
+!docker/monitoring/prometheus/Dockerfile
 
 # Empty files in general
 **/*_empty.py
 **/*_temp.*
 **/*_old.*
 **/*_backup.*
+
+# Project specific files to keep
+!data/FILE_CSV/*.csv
+!data/FILE_GEOJSON/*.geojson
+!data/SHAPEFILE_CLIMA_BR/*.shp
+!data/SHAPEFILE_CLIMA_BR/*.shx
+!data/SHAPEFILE_CLIMA_BR/*.dbf
+!monitoring/prometheus.yml
+
+# Remove status file
+CLEANUP_STATUS.md
+
+# Local development
+docker-compose.override.yml
+.env.local
+.env.development
+
+# Database
+*.sqlite3
+*.sqlite
+*.db
+
+# Environment directories
+.python-version
+.ruby-version
+.node-version
+.tool-versions
+
+# Visual Studio Code workspace settings
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace

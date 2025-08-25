@@ -37,15 +37,15 @@ from loguru import logger
 # Local imports
 from components.navbar import render_navbar_bootswatch
 from components.footer import render_footer_bootswatch
-from src.map_generator import create_interactive_map
-from src.results_graphs import (
+from backend.core.map_results.map_generator import create_interactive_map
+from backend.core.results_graphs import (
     plot_correlation,
     plot_eto_vs_radiation,
     plot_eto_vs_temperature,
     plot_heatmap,
     plot_temp_rad_prec
 )
-from src.results_statistical import (
+from backend.core.results_statistical import (
     display_correlation_matrix,
     display_cumulative_distribution,
     display_daily_data,
@@ -55,7 +55,7 @@ from src.results_statistical import (
     display_seasonality_test,
     display_trend_analysis
 )
-from src.results_tables import display_results_table
+from backend.core.results_tables import display_results_table
 from utils.data_utils import load_matopiba_data
 from utils.get_translations import get_translations
 

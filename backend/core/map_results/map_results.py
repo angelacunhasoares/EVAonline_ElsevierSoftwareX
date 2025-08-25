@@ -240,6 +240,7 @@ def map_piracicaba_city(t: Dict[str, str], heatmap_points=None):
     """
     return map_obj, center, zoom, map_desc, legend_html
 
+
 def create_interactive_map(t: Dict[str, str], heatmap_points=None):
     """Gera o mapa global interativo para seleção de coordenadas."""
     logger.info("Gerando mapa global interativo")
