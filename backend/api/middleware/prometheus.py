@@ -5,7 +5,12 @@ from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 import time
-from backend.api.main import API_REQUESTS, API_REQUEST_DURATION, API_ACTIVE_REQUESTS
+from backend.api.main import (
+    API_REQUESTS,
+    API_REQUEST_DURATION,
+    API_ACTIVE_REQUESTS,
+)
+
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
     async def dispatch(

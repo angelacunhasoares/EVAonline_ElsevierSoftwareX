@@ -9,8 +9,8 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_client import Counter, Histogram, Gauge
 
 from config.settings.app_settings import get_settings
-from api.routes import api_router
-from api.websocket.websocket_service import router as websocket_router
+from backend.api.routes import api_router
+from backend.api.websocket.websocket_service import router as websocket_router
 from frontend.app import create_dash_app
 
 # Configuração do logger
@@ -68,7 +68,7 @@ def create_application() -> FastAPI:
     )
     
     # Adicionar middleware Prometheus
-    from api.middleware.prometheus import PrometheusMiddleware
+    from backend.api.middleware.prometheus import PrometheusMiddleware
     app.add_middleware(PrometheusMiddleware)
 
     # Montar rotas da API

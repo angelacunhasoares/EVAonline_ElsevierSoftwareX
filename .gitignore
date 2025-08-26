@@ -1,5 +1,12 @@
 # .gitignore
 
+### Backend Specific ###
+# Cache files
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/logs/*.log
+backend/infrastructure/cache/*.cache
+
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/

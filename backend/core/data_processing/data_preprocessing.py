@@ -14,6 +14,7 @@ CACHE_EXPIRY_HOURS = 24  # 24 hours
 
 # Configure logging (already configured in eto_calculator.py, so no need to add again here)
 
+
 @shared_task
 def data_initial_validate(weather_df: pd.DataFrame, latitude: float) -> Tuple[pd.DataFrame, List[str]]:
     """

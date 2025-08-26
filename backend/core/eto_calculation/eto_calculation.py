@@ -13,9 +13,10 @@ import pandas as pd
 from typing import Tuple, Optional, Dict, Any, List, Union
 from loguru import logger
 from datetime import datetime, timedelta
-from src.data_preprocessing import preprocessing
-from src.data_download import download_weather_data
-from src.data_fusion import data_fusion
+
+from backend.core.data_processing.data_preprocessing import preprocessing
+from backend.core.data_processing.data_download import download_weather_data
+from backend.core.data_processing.data_fusion import data_fusion
 
 # Configuração do logging
 logger.add(
@@ -27,7 +28,7 @@ logger.add(
 )
 
 # Importar instância do Celery já configurada
-from api.celery_config import app
+from config.settings.celery_config import app
 
 # Constantes
 MATOPIBA_BOUNDS = {
@@ -36,6 +37,7 @@ MATOPIBA_BOUNDS = {
     'lng_min': -50.0,
     'lng_max': -41.5
 }
+
 
 def calculate_eto(
     weather_df: pd.DataFrame, 
@@ -108,9 +110,10 @@ def calculate_eto(
             (T2M + 237.3) ** 2
         )
 
-        total_days_in_year = np.where(
-            pd.DatetimeIndex(weather_df.index).is_leap_year, 366, 365
-        )
+        # Ensure index is datetime and get years
+        years = pd.to_datetime(weather_df.index).year
+        is_leap_year = [pd.Timestamp(str(year)).is_leap_year for year in years]
+        total_days_in_year = np.where(is_leap_year, 366, 365)
 
         Rso = (0.75 + 2e-5 * elevation) * Ra
         SIGMA = 4.903e-9
@@ -236,14 +239,16 @@ async def calculate_eto_pipeline(
                 raise ValueError(
                     "Estado e cidade são obrigatórios para o modo MATOPIBA"
                 )
-            if not (MATOPIBA_BOUNDS['lat_min'] <= lat <= MATOPIBA_BOUNDS['lat_max'] and
-                   MATOPIBA_BOUNDS['lng_min'] <= lng <= MATOPIBA_BOUNDS['lng_max']):
+            if not (
+                MATOPIBA_BOUNDS['lat_min'] <= lat <= MATOPIBA_BOUNDS['lat_max'] and
+                MATOPIBA_BOUNDS['lng_min'] <= lng <= MATOPIBA_BOUNDS['lng_max']
+            ):
                 warnings.append(
                     "Coordenadas fora da região típica do MATOPIBA"
                 )
 
         # Download dos dados primários
-        weather_data, download_warnings = await download_weather_data(
+        weather_data, download_warnings = download_weather_data(
             database, d_inicial, d_final, lng, lat
         )
         warnings.extend(download_warnings)
@@ -258,7 +263,7 @@ async def calculate_eto_pipeline(
                 # Tentar obter dados de outras fontes disponíveis
                 for additional_source in ["met_norway", "nws", "noaa_cdo"]:
                     try:
-                        extra_data, extra_warnings = await download_weather_data(
+                        extra_data, extra_warnings = download_weather_data(
                             additional_source, d_inicial, d_final, lng, lat
                         )
                         if extra_data is not None and not extra_data.empty:
@@ -289,14 +294,15 @@ async def calculate_eto_pipeline(
                 # Continua com os dados primários em caso de erro
 
         # Pré-processamento
-        weather_data = await preprocessing(weather_data, lat)
+        weather_data, preprocessing_warnings = preprocessing(weather_data, lat)
+        warnings.extend(preprocessing_warnings)
         
         # Cálculo de ETo
         result_df, calc_warnings = calculate_eto(weather_data, elevation, lat)
         warnings.extend(calc_warnings)
 
         # Retornar resultados
-        return result_df.to_dict(orient='records'), warnings
+        return {'data': result_df.to_dict(orient='records')}, warnings
 
     except Exception as e:
         msg = f"Erro no pipeline de ETo: {str(e)}"

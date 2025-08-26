@@ -8,6 +8,7 @@ from api.nasapower import NasaPowerAPI
 from api.openmeteo import OpenMeteoForecastAPI
 from src.data_fusion import data_fusion
 
+
 @shared_task
 def download_weather_data(
     data_source: Union[str, list],
