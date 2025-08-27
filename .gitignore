@@ -1,5 +1,12 @@
 # .gitignore
 
+### Assets Generation ###
+# Arquivos temporários e de desenvolvimento dos scripts de geração de assets
+assets_generation/**/*.tmp
+assets_generation/**/*.temp
+assets_generation/**/__pycache__/
+assets_generation/**/.ipynb_checkpoints/
+
 ### Backend Specific ###
 # Cache files
 backend/**/__pycache__/
@@ -104,6 +111,12 @@ dump.rdb
 celerybeat-schedule
 celerybeat.pid
 celerybeat-schedule.db
+celery.log
+
+# Celery specific
+*.pid
+.celery
+celerybeat-schedule.*
 
 ### Logs ###
 *.log
