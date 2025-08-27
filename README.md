@@ -1,7 +1,7 @@
 # EVAonline: An online tool for reference EVApotranspiration estimation
 
 <p align="center">
-  <img src="frontend/assets/home_gif.gif" alt="EVAonline Logo" width="600">
+  <img src="frontend/assets/evaonline_logo.png" alt="EVAonline Logo" width="600">
 </p>
 
 ## 🌿 Overview
