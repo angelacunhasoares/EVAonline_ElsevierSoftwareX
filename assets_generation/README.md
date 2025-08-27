@@ -1,42 +1,42 @@
 # Assets Generation Scripts
 
-Esta pasta contém scripts utilizados para gerar assets estáticos para o EVAonline.
+This folder contains scripts used to generate static assets for EVAonline.
 
-## Estrutura
+## Structure
 
-- `maps/`: Scripts para geração de mapas estáticos
-  - `matopiba_map.py`: Gera o mapa estático da região do MATOPIBA
+- `maps/`: Scripts for static map generation
+  - `matopiba_map.py`: Generates static map of the MATOPIBA region
 
-## Como usar
+## How to Use
 
-Os scripts nesta pasta são ferramentas auxiliares que geram assets estáticos para o EVAonline. Os assets gerados são salvos na pasta `assets/` do projeto.
+The scripts in this folder are auxiliary tools that generate static assets for EVAonline. Generated assets are saved in the project's `frontend/assets/images/` directory.
 
-### Gerando mapas
+### Generating Maps
 
-1. Para gerar o mapa do MATOPIBA:
+1. To generate the MATOPIBA map:
    ```bash
    python maps/matopiba_map.py
    ```
-   O mapa será salvo em `../../frontend/assets/images/matopiba.png`
+   The map will be saved to `../../frontend/assets/images/matopiba_map.png`
 
-Estrutura de diretórios:
+Directory structure:
 ```
 EVAonline_ElsevierSoftwareX/
 ├── frontend/
 │   └── assets/
-│       └── images/          # Todos os assets de imagem do projeto
+│       └── images/          # All project image assets
 │           ├── logo_c4ai.png
 │           ├── logo_esalq.png
-│           └── matopiba.png # Mapa gerado pelo script
+│           └── matopiba.png # Generated map
 ├── assets_generation/
 │   └── maps/           
-│       └── matopiba_map.py  # Script gerador
+│       └── matopiba_map.py  # Generator script
 ```
 
-O script deve ser configurado para salvar o mapa na pasta `frontend/assets/images/`, onde ficam todas as imagens do projeto EVAonline.
+The script is configured to save the map in the `frontend/assets/images/` folder, where all EVAonline project images are stored.
 
-## Observações
+## Notes
 
-- Estes scripts não são parte do funcionamento do software EVAonline
-- São utilizados apenas para gerar assets estáticos que serão incluídos no projeto
-- Podem ter dependências adicionais não necessárias para o EVAonline
+- These scripts are not part of EVAonline's core functionality
+- They are used only to generate static assets that will be included in the project
+- May have additional dependencies not required for EVAonline itself
