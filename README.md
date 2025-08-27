@@ -4,7 +4,7 @@
 
 ## 🌿 Overview
 
-EVAonline is a comprehensive web application for calculating reference evapotranspiration (ET₀) using meteorological data from multiple sources. Built with modern technologies, it provides interactive dashboards, real-time data processing, and geospatial visualization capabilities.
+EVAonline is a comprehensive web application for calculating reference evapotranspiration (ET₀) using the FAO-56 Penman-Monteith method. It employs a sophisticated data fusion approach, integrating real-time meteorological data from multiple global sources (NASA POWER, MET Norway API, National Weather Service API, and NOAA Climate Data Online). The system features real-time ET₀ heat maps for the MATOPIBA region (powered by Open-Meteo Forecast), updated three times daily. Built with modern technologies, it provides interactive dashboards, real-time data processing, and advanced geospatial visualization capabilities.
 
 ## 🏗️ Architecture
 
@@ -39,11 +39,16 @@ EVAonline_ElsevierSoftwareX/
 │   ├── data_service.py    # Data processing endpoints
 │   ├── websocket_service.py # WebSocket connections
 │   └── services/          # Service modules
+├── assets_generation/     # Scripts for generating static assets
+│   └── maps/             # Map generation scripts
 ├── components/            # Reusable Dash components
 ├── database/              # Database configuration and models
 │   ├── connection.py      # Database connection setup
 │   ├── models/           # SQLAlchemy models
 │   └── migrations/       # Database migration scripts
+├── frontend/             # Frontend application
+│   └── assets/          # Static assets (images, styles)
+│       └── images/      # Image assets
 ├── pages/                # Dash page components
 ├── src/                  # Core business logic
 ├── utils/                # Utility functions
@@ -98,10 +103,49 @@ Key configuration options in `.env`:
 
 ## 📊 Features
 
-### Data Sources
-- **NASA POWER**: Meteorological satellite data
-- **OpenMeteo**: Weather forecasting data
-- **Local Datasets**: MATOPIBA region data, climate shapefiles
+### Data Sources and Processing
+
+#### Real-Time Data Integration
+EVAonline integrates multiple real-time weather data sources through RESTful APIs:
+
+- **Global Coverage**:
+  - **NASA POWER**: Primary meteorological satellite data
+  - **Open-Meteo Forecast**: Global weather forecasting and historical data
+  - **Open-Meteo Elevation API**: High-precision global elevation data
+
+- **Regional Specialized Sources**:
+  - **MET Norway API**: High-resolution European weather data
+  - **National Weather Service API**: Detailed USA meteorological data
+  - **Open-Meteo Forecast**: MATOPIBA region data (updated 3x daily)
+
+#### Data Fusion and Processing
+- **Multi-Source Integration**: 
+  - Real-time data fusion from all available APIs
+  - Weighted ensemble approach for robust estimates
+  - Automated quality control and cross-validation
+
+#### Quality Assurance
+- **Global Validation**:
+  - AgERA5 (ECMWF) dataset used for worldwide ET₀ validation
+  - Comprehensive validation across different climate zones
+  - Regular accuracy assessments against reference data
+
+- **Brazilian Regional Validation**:
+  - Validation against Xavier's Brazilian Daily Weather Gridded Dataset
+  - High-resolution (0.25° x 0.25°) meteorological data covering Brazil
+  - Extensive ground-truth validation using weather station data
+  - Reference dataset specifically developed for Brazilian conditions
+
+#### Automated Features
+- **MATOPIBA Heat Maps**: 
+  - Dynamic ET₀ visualization updated three times daily
+  - High-resolution spatial coverage of the region
+
+- **Global Elevation Integration**:
+  - Automated elevation retrieval for any location
+  - Ensures accurate ET₀ calculations worldwide
+
+*Note: EVAonline employs sophisticated data fusion algorithms to combine multiple real-time data sources, with AgERA5 serving as an independent validation dataset to ensure calculation accuracy.*
 
 ### Visualization
 - **Interactive Maps**: GeoJSON layers with OpenStreetMap tiles
