@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 # Carrega variáveis de ambiente
 load_dotenv()
 
+
 class Settings(BaseSettings):
     # Configurações gerais
     PROJECT_NAME: str = "EVAonline"
@@ -25,8 +26,9 @@ class Settings(BaseSettings):
     DASH_URL_BASE_PATHNAME: str = "/"
     DASH_ROUTES: dict = {
         "home": "/",
-        "eto_calculator": "/eto_calculator",
-        "about": "/about"
+        "eto_calculator": "/eto",
+        "about": "/about",
+        "documentation": "/documentation"
     }
     DASH_ASSETS_FOLDER: str = "frontend/assets"
     
@@ -35,7 +37,9 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "postgres")
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "evaonline")
-    SQLALCHEMY_DATABASE_URI: str = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER}/{POSTGRES_DB}"
+    SQLALCHEMY_DATABASE_URI: str = (
+        f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER}/{POSTGRES_DB}"
+    )
     
     # Configurações Redis
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")

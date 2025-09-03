@@ -3,7 +3,8 @@ Modelos de banco de dados para armazenamento de resultados ETo.
 """
 from sqlalchemy import Column, Integer, Float, DateTime
 from database.connection import Base
-
+# integrar com a ferramenta Alembic para gerenciar migrações de 
+# forma automatizada - REFAZER ESSE SCRIPT
 
 class EToResults(Base):
     """
