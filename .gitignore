@@ -296,3 +296,181 @@ docker-compose.override.yml
 !.vscode/launch.json
 !.vscode/extensions.json
 *.code-workspace
+
+### Enhanced Sections Added 2025-09-03 ###
+
+### API Cache & Temporary Files ###
+# Open-Meteo API cache
+.cache/
+openmeteo_cache/
+weather_cache/
+# Temporary API response files
+*.api_response
+*.json.tmp
+*.xml.tmp
+# Request cache files
+requests_cache/
+
+### Data Processing ###
+# Temporary data processing files
+data/temp/
+data/cache/
+data/processing/
+*.processed
+*.intermediate
+# ETo calculation temporary files
+eto_temp/
+eto_cache/
+# GIS processing files
+gis_temp/
+shapefile_temp/
+
+### Testing & Development ###
+# Test output files
+test_output/
+test_results/
+*.test
+*_test_output.*
+# Coverage reports
+.coverage.*
+coverage/
+htmlcov/
+# Profiling files
+*.prof
+*.lprof
+profile_output/
+
+### Jupyter Enhanced ###
+# Jupyter checkpoints (enhanced)
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+# Jupyter runtime files
+.jupyter/
+jupyter_runtime/
+# Notebook outputs
+*.nbconvert.ipynb
+*.nbconvert.html
+
+### Docker Enhanced ###
+# Docker build context
+.dockerignore.tmp
+# Docker layer cache
+.docker/
+# Docker compose overrides
+docker-compose.override.yml
+docker-compose.local.yml
+# Docker volumes (local)
+docker-volumes/
+docker-data/
+
+### Environment Enhanced ###
+# Additional environment files
+.env.backup
+.env.old
+.env.production
+.env.staging
+.env.test
+# Python virtual environments (additional patterns)
+.venv*/
+venv*/
+env*/
+ENV*/
+# Conda environments
+conda-env/
+miniconda/
+anaconda/
+
+### IDE Enhanced ###
+# VS Code additional
+.vscode/settings.json.backup
+.vscode/launch.json.backup
+.vscode/tasks.json.backup
+# PyCharm additional
+.idea/workspace.xml.backup
+.idea/tasks.xml.backup
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+### OS Enhanced ###
+# Windows additional
+desktop.ini
+$RECYCLE.BIN/
+System Volume Information/
+# Linux additional
+*~
+.nfs*
+# macOS additional (if cross-platform)
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+### Project Specific Enhanced ###
+# EVAonline specific
+eva_cache/
+weather_data_cache/
+eto_calculations/
+# Temporary scripts
+temp_*.py
+*_temp.py
+*_backup.py
+*_old.py
+# Development notebooks
+dev_notebooks/
+test_notebooks/
+# API testing files
+api_test_*.py
+*_api_test.py
+
+### Security ###
+# API keys and secrets (additional patterns)
+secrets/
+keys/
+*.key
+*.pem
+*.crt
+*.p12
+# Password files
+passwords.txt
+credentials.txt
+# Token files
+tokens/
+*.token
+
+### Performance & Debugging ###
+# Performance logs
+perf_*.log
+performance_*.log
+# Debug files
+debug_*.log
+*.debug
+# Memory dumps
+*.dmp
+*.mdmp
+# Core dumps
+core
+core.*
+
+### Backup Files ###
+# Database backups
+*.sql.backup
+*.dump.backup
+*.tar.gz.backup
+*.zip.backup
+# Code backups
+*.py.backup
+*.js.backup
+*.html.backup
+# Config backups
+*.yml.backup
+*.yaml.backup
+*.json.backup
