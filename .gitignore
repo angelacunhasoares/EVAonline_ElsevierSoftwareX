@@ -187,10 +187,21 @@ nginx.log
 ### Monitoring ###
 # Prometheus data
 prometheus_data/
-# Grafana data  
+# Grafana data
 grafana_data/
-
-### Nginx ###
+# Grafana logs
+grafana.log
+# Prometheus logs
+prometheus.log
+# Monitoring temporary files
+monitoring/**/*.tmp
+monitoring/**/*.log
+# Docker monitoring logs
+docker/monitoring/**/*.log
+# Keep monitoring configuration files
+!docker/monitoring/prometheus.yml
+!docker/monitoring/grafana/provisioning/**/*.yml
+!docker/monitoring/grafana/dashboards/**/*.json### Nginx ###
 # Nginx cache
 nginx_cache/
 
@@ -268,7 +279,16 @@ docker-compose.override.yml
 !data/SHAPEFILE_CLIMA_BR/*.shp
 !data/SHAPEFILE_CLIMA_BR/*.shx
 !data/SHAPEFILE_CLIMA_BR/*.dbf
-!monitoring/prometheus.yml
+!docker/monitoring/prometheus.yml
+!docker/monitoring/grafana/provisioning/**/*.yml
+!docker/monitoring/grafana/dashboards/**/*.json
+
+# Keep startup scripts
+!start-monitoring.sh
+!start-monitoring.bat
+
+# Keep documentation
+!GRAFANA_README.md
 
 # Remove status file
 CLEANUP_STATUS.md
@@ -277,6 +297,13 @@ CLEANUP_STATUS.md
 docker-compose.override.yml
 .env.local
 .env.development
+.env.production
+.env.staging
+.env.test
+# Temporary environment files
+.env.tmp
+.env.backup
+.env.old
 
 # Database
 *.sqlite3
@@ -414,22 +441,27 @@ Icon
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
 
-### Project Specific Enhanced ###
-# EVAonline specific
-eva_cache/
-weather_data_cache/
-eto_calculations/
-# Temporary scripts
+### Development & Testing ###
+# Test scripts and temporary files
+test_*.py
+*_test.py
 temp_*.py
 *_temp.py
 *_backup.py
 *_old.py
-# Development notebooks
-dev_notebooks/
-test_notebooks/
+# Development logs
+dev_*.log
+development_*.log
 # API testing files
 api_test_*.py
 *_api_test.py
+# Notebook development
+dev_notebooks/
+test_notebooks/
+# Temporary configuration files
+*.config.tmp
+*.yml.tmp
+*.yaml.tmp
 
 ### Security ###
 # API keys and secrets (additional patterns)
@@ -474,3 +506,12 @@ core.*
 *.yml.backup
 *.yaml.backup
 *.json.backup
+# Docker backups
+docker-compose.backup
+Dockerfile.backup
+# Environment backups
+.env.backup
+.env.old
+# Project specific backups
+*.md.backup
+README.backup
