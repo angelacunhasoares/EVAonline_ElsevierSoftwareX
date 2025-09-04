@@ -1,12 +1,14 @@
 from datetime import datetime
-from typing import Union, Tuple, List
+from typing import List, Tuple, Union
+
 import numpy as np
 import pandas as pd
 from celery import shared_task
 from loguru import logger
-from api.nasapower import NasaPowerAPI
-from api.openmeteo import OpenMeteoForecastAPI
-from src.data_fusion import data_fusion
+
+from backend.api.services.nasapower import NasaPowerAPI
+from backend.api.services.openmeteo import OpenMeteoForecastAPI
+from backend.core.data_processing.data_fusion import data_fusion
 
 
 @shared_task

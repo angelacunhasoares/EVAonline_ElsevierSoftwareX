@@ -2,11 +2,12 @@
 Configurações gerais da aplicação.
 Contém configurações compartilhadas entre FastAPI e Dash.
 """
-from typing import Dict, Any
-from pydantic_settings import BaseSettings
-from functools import lru_cache
 import os
+from functools import lru_cache
+from typing import Any, Dict
+
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -45,7 +46,10 @@ class Settings(BaseSettings):
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", 6379))
     REDIS_DB: int = int(os.getenv("REDIS_DB", 0))
-    REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "evaonline")
+    REDIS_URL: str = (
+        f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    )
     
     # Configurações Celery
     CELERY_BROKER_URL: str = REDIS_URL

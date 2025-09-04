@@ -2,14 +2,17 @@
 Configuração do Celery para tarefas assíncronas do EVAonline.
 Centraliza todas as configurações do Celery para a aplicação.
 """
-from celery import Celery
-from kombu import Queue
-from celery.schedules import crontab
-from config.settings.app_settings import get_settings
-from prometheus_client import Counter, Histogram
-from redis.asyncio import Redis
 import json
 from datetime import datetime
+
+from celery import Celery
+from celery.schedules import crontab
+from kombu import Queue
+from redis.asyncio import Redis
+
+from backend.api.middleware.prometheus_metrics import (CELERY_TASK_DURATION,
+                                                       CELERY_TASKS_TOTAL)
+from config.settings.app_settings import get_settings
 
 # Carregar configurações
 settings = get_settings()
@@ -22,16 +25,7 @@ celery_app = Celery(
 )
 
 # Métricas Prometheus
-CELERY_TASKS_TOTAL = Counter(
-    "celery_tasks_total", 
-    "Total de tarefas executadas", 
-    ["task_name", "status"]
-)
-CELERY_TASK_DURATION = Histogram(
-    "celery_task_duration_seconds", 
-    "Duração de tarefas Celery", 
-    ["task_name"]
-)
+# As métricas são importadas do main.py para evitar duplicação
 
 # Classe base para tarefas com monitoramento e progresso
 class MonitoredProgressTask(celery_app.Task):

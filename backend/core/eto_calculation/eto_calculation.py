@@ -8,15 +8,16 @@ Este módulo implementa:
 - Suporte ao modo MATOPIBA
 """
 
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import pandas as pd
-from typing import Tuple, Optional, Dict, Any, List, Union
 from loguru import logger
-from datetime import datetime, timedelta
 
-from backend.core.data_processing.data_preprocessing import preprocessing
 from backend.core.data_processing.data_download import download_weather_data
 from backend.core.data_processing.data_fusion import data_fusion
+from backend.core.data_processing.data_preprocessing import preprocessing
 
 # Configuração do logging
 logger.add(
@@ -28,7 +29,7 @@ logger.add(
 )
 
 # Importar instância do Celery já configurada
-from config.settings.celery_config import app
+from backend.infrastructure.celery.celery_config import celery_app as app
 
 # Constantes
 MATOPIBA_BOUNDS = {

@@ -1,12 +1,22 @@
+import logging
+
+from asgiref.wsgi import WsgiToAsgi
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
-from prometheus_client import Counter, Histogram, Gauge
-from config.settings.app_settings import get_settings
+
+from backend.api.middleware.prometheus_metrics import (API_ACTIVE_REQUESTS,
+                                                       API_REQUEST_DURATION,
+                                                       API_REQUESTS,
+                                                       CACHE_HITS,
+                                                       CACHE_MISSES,
+                                                       CELERY_TASK_DURATION,
+                                                       CELERY_TASKS_TOTAL,
+                                                       POPULAR_DATA_ACCESSES)
 from backend.api.routes import api_router
 from backend.api.websocket.websocket_service import router as websocket_router
+from config.settings.app_settings import get_settings
 from frontend.app import create_dash_app
-import logging
 
 # Configuração do logger
 logging.basicConfig(
@@ -21,37 +31,6 @@ logger = logging.getLogger(__name__)
 
 # Carregar configurações
 settings = get_settings()
-
-# Métricas Prometheus
-API_REQUESTS = Counter(
-    "api_requests_total", 
-    "Total number of API requests",
-    ["method", "endpoint", "status_code"]
-)
-API_REQUEST_DURATION = Histogram(
-    "api_request_duration_seconds",
-    "API request duration in seconds",
-    ["method", "endpoint"]
-)
-API_ACTIVE_REQUESTS = Gauge(
-    "api_active_requests",
-    "Number of currently active requests",
-    ["method", "endpoint"]
-)
-# Adicionar métricas para cache e Celery (conforme sugerido anteriormente)
-CACHE_HITS = Counter("redis_cache_hits", "Cache hits", ["key"])
-CACHE_MISSES = Counter("redis_cache_misses", "Cache misses", ["key"])
-POPULAR_DATA_ACCESSES = Counter("popular_data_accesses", "Acessos a dados populares", ["key"])
-CELERY_TASK_DURATION = Histogram(
-    "celery_task_duration_seconds", 
-    "Duração de tarefas Celery", 
-    ["task_name"]
-)
-CELERY_TASKS_TOTAL = Counter(
-    "celery_tasks_total", 
-    "Total de tarefas executadas", 
-    ["task_name", "status"]
-)
 
 def create_application() -> FastAPI:
     app = FastAPI(
@@ -84,14 +63,18 @@ def create_application() -> FastAPI:
 
     return app
 
+
 def mount_dash(app: FastAPI) -> FastAPI:
     dash_app = create_dash_app()
+    # Converter WSGI app para ASGI app
+    asgi_app = WsgiToAsgi(dash_app.server)
     app.mount(
         settings.DASH_URL_BASE_PATHNAME,
-        dash_app.server,
+        asgi_app,
         name="dash_app"
     )
     return app
+
 
 app = create_application()
 app = mount_dash(app)
