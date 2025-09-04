@@ -90,7 +90,61 @@ EVAonline_ElsevierSoftwareX/
    - **Prometheus:** http://localhost:9090
    - **Grafana:** http://localhost:3000
 
-## 🔧 Configuration
+## �️ Management Scripts
+
+The project includes a unified management script for common operations:
+
+### Windows (PowerShell)
+```powershell
+# Mostrar status dos serviços
+manage.bat status
+
+# Testar conexão básica com Redis
+manage.bat test-redis
+
+# Teste completo Redis + instruções VS Code
+manage.bat vscode-redis
+
+# Iniciar serviços de monitoramento
+manage.bat monitoring
+
+# Executar todos os testes
+manage.bat test-all
+
+# Iniciar/parar todos os serviços
+manage.bat start
+manage.bat stop
+
+# Mostrar ajuda
+manage.bat help
+```
+
+### Linux/macOS (Bash)
+```bash
+# Mostrar status dos serviços
+./manage.sh status
+
+# Testar conexão básica com Redis
+./manage.sh test-redis
+
+# Teste completo Redis + instruções VS Code
+./manage.sh vscode-redis
+
+# Iniciar serviços de monitoramento
+./manage.sh monitoring
+
+# Executar todos os testes
+./manage.sh test-all
+
+# Iniciar/parar todos os serviços
+./manage.sh start
+./manage.sh stop
+
+# Mostrar ajuda
+./manage.sh help
+```
+
+## �🔧 Configuration
 
 ### Environment Variables
 

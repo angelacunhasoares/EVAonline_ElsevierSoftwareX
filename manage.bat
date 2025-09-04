@@ -1,4 +1,20 @@
 @echo off
+if "%1"=="status" goto status
+if "%1"=="test-redis" goto test_redis
+if "%1"=="vscode-redis" goto vscode_redis
+goto help
+
+:status
+echo Status dos servicos:
+docker-compose ps
+goto end
+
+:test_redis
+echo Testando Redis:
+docker exec evaonline-redis redis-cli -a evaonline ping
+goto end
+
+:vscode_redis
 echo 🔍 Teste de Conectividade Redis para VS Code
 echo.
 
@@ -9,7 +25,7 @@ if %errorlevel% equ 0 (
 ) else (
     echo ❌ Redis container NAO esta rodando
     echo Execute: docker-compose up -d redis
-    goto :end
+    goto end
 )
 
 echo.
@@ -52,7 +68,18 @@ echo 🔧 Se ainda nao funcionar:
 echo - Verifique se a extensao esta atualizada
 echo - Tente desabilitar e reabilitar a extensao
 echo - Recarregue a janela do VS Code
+goto end
+
+:help
+echo Script de gerenciamento do projeto EVAonline
+echo.
+echo Uso: manage.bat [comando]
+echo.
+echo Comandos disponíveis:
+echo   status        Mostrar status dos serviços
+echo   test-redis    Testar conexão básica com Redis
+echo   vscode-redis  Teste completo Redis + instruções VS Code
+echo   help          Mostrar esta ajuda
+goto end
 
 :end
-echo.
-pause

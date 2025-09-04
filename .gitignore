@@ -1,21 +1,12 @@
-# .gitignore
+# ===========================================
+# GITIGNORE - EVAonline
+# ===========================================
+# Arquivos ignorados pelo Git
+# Baseado em templates padrão + customizações
 
-### Assets Generation ###
-# Arquivos temporários e de desenvolvimento dos scripts de geração de assets
-assets_generation/**/*.tmp
-assets_generation/**/*.temp
-assets_generation/**/__pycache__/
-assets_generation/**/.ipynb_checkpoints/
-
-### Backend Specific ###
-# Cache files
-backend/**/__pycache__/
-backend/.pytest_cache/
-backend/logs/*.log
-backend/infrastructure/cache/*.cache
-
-### Python ###
-# Byte-compiled / optimized / DLL files
+# ===========================================
+# Python
+# ===========================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -40,21 +31,23 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Jupyter Notebook
-.ipynb_checkpoints
-*/.ipynb_checkpoints/*
-*.ipynb_checkpoints
-.jupyter/
-
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
+# ===========================================
+# Ambientes Virtuais
+# ===========================================
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+ENV/
+env.bak/
+venv.bak/
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit test / coverage reports
+# ===========================================
+# Testes e Cobertura
+# ===========================================
 htmlcov/
 .tox/
 .nox/
@@ -67,37 +60,191 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+.coverage
+coverage.xml
 
-# Virtual environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+# ===========================================
+# Jupyter Notebook
+# ===========================================
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+*.ipynb_checkpoints
+.jupyter/
 
-### FastAPI & Dash ###
+# ===========================================
+# PyInstaller
+# ===========================================
+*.manifest
+*.spec
+
+# ===========================================
+# PyBuilder
+# ===========================================
+target/
+
+# ===========================================
+# FastAPI & Dash
+# ===========================================
 # Environment variables
 *.env
 .env.*
 !.env.example
 
-### Docker ###
-# Docker volumes and data
+# ===========================================
+# Docker
+# ===========================================
+.dockerignore
 docker-volumes/
 docker-data/
+docker-compose.override.yml
 
-### Database ###
-# PostgreSQL files
+# ===========================================
+# Database
+# ===========================================
 *.sql
 *.dump
 *.backup
 *.sqlite
 *.sqlite3
-
-# Database directories
 data/db/
+data/postgres/
+data/redis/
+
+# ===========================================
+# Logs
+# ===========================================
+logs/
+*.log
+loguru/
+*.log.*
+
+# ===========================================
+# Assets Generation
+# ===========================================
+assets_generation/**/*.tmp
+assets_generation/**/*.temp
+assets_generation/**/__pycache__/
+assets_generation/**/.ipynb_checkpoints/
+
+# ===========================================
+# Backend Specific
+# ===========================================
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/logs/*.log
+backend/infrastructure/cache/*.cache
+
+# ===========================================
+# Dados Grandes
+# ===========================================
+data/FILE_CSV/
+data/FILE_GEOJSON/
+data/SHAPEFILE_CLIMA_BR/
+data/large_files/
+data/backups/
+
+# ===========================================
+# Sistema Operacional
+# ===========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===========================================
+# IDEs
+# ===========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===========================================
+# Arquivos Temporários
+# ===========================================
+temp/
+tmp/
+.cache/
+*.tmp
+*.temp
+
+# ===========================================
+# Distribuição
+# ===========================================
+dist/
+build/
+*.egg-info/
+
+# ===========================================
+# Node.js (caso use)
+# ===========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# ===========================================
+# Backup e Recovery
+# ===========================================
+*.bak
+*.backup
+*.old
+*~
+
+# ===========================================
+# Configurações Locais
+# ===========================================
+config/local/
+config/development/
+config/production/
+
+# ===========================================
+# Secrets e Chaves
+# ===========================================
+secrets/
+keys/
+*.key
+*.pem
+*.crt
+*.p12
+
+# ===========================================
+# Monitoramento
+# ===========================================
+monitoring/prometheus/data/
+monitoring/grafana/data/
+
+# ===========================================
+# Documentação Temporária
+# ===========================================
+docs/temp/
+docs/drafts/
 database/data/
 
 ### Redis ###
