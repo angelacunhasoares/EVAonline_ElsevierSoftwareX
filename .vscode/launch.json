@@ -1,0 +1,57 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Testes com Pytest",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/",
+                "-v",
+                "--tb=short"
+            ],
+            "cwd": "${workspaceFolder}/backend",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend"
+            }
+        },
+        {
+            "name": "Python: Teste específico",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "${file}",
+                "-v",
+                "--tb=short"
+            ],
+            "cwd": "${workspaceFolder}/backend",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend"
+            }
+        },
+        {
+            "name": "Python: Coverage Report",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/",
+                "--cov=backend",
+                "--cov-report=html",
+                "--cov-report=term-missing"
+            ],
+            "cwd": "${workspaceFolder}/backend",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend"
+            }
+        }
+    ]
+}
