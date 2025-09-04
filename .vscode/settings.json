@@ -59,11 +59,12 @@
             "port": 6379,
             "password": "evaonline",
             "database": 0,
-            "timeout": 5000,
+            "timeout": 10000,
             "showNamespace": true,
             "namespaceSeparator": ":",
             "keyPrefix": "",
-            "autoConnect": false
+            "autoConnect": false,
+            "username": ""
         }
     ],
     "redis-for-vscode.scanLimit": 10000,
@@ -71,5 +72,6 @@
     "redis-for-vscode.showKeyType": true,
     "redis-for-vscode.confirmDelete": true,
     "redis-for-vscode.formatJson": true,
-    "redis-for-vscode.connectionView": "tree"
+    "redis-for-vscode.connectionView": "tree",
+    "redis-for-vscode.defaultTimeout": 5000
 }
