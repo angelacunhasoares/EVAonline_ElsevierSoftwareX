@@ -159,7 +159,11 @@ Thumbs.db
 
 ### IDE ###
 # VS Code
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 *.code-workspace
 .history/
 
@@ -206,8 +210,22 @@ docker/monitoring/**/*.log
 nginx_cache/
 
 ### IDE ###
-.vscode/
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+# PyCharm
 .idea/
+*.iml
+*.iws
+.idea_modules/
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+# Outros
 *.swp
 *.swo
 
