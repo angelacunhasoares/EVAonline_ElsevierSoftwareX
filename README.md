@@ -50,7 +50,6 @@ EVAonline_ElsevierSoftwareX/
 │   └── assets/          # Static assets (images, styles)
 │       └── images/      # Image assets
 ├── pages/                # Dash page components
-├── src/                  # Core business logic
 ├── utils/                # Utility functions
 ├── monitoring/           # Prometheus configuration
 ├── docker-compose.yml    # Multi-service orchestration
@@ -404,4 +403,6 @@ For questions, support, or commercial inquiries, please contact [angelasilviane@
 
 ## Acknowledgments
 
-Developed as part of a doctoral dissertation at Escola Superior de Agricultura "Luiz de Queiroz" (Esalq), University of São Paulo. Thanks to [advisor/co-authors/funders, if applicable] for their support.
+Developed as part of a doctoral dissertation at Escola Superior de Agricultura "Luiz de Queiroz" (Esalq), University of São Paulo. Thanks to [advisor/co-authors/funders, if applicable] for their support.T e s t e   d e   c o m m i t   e m   0 4 / 0 9 / 2 0 2 5   p o r   a n g e l a c u n h a s o r e s  
+ T e s t e   d e   c o m m i t   e m   0 4 / 0 9 / 2 0 2 5   p o r   a n g e l a c u n h a s o r e s  
+ 
