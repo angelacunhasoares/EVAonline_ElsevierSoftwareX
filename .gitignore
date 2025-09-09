@@ -306,11 +306,7 @@ Thumbs.db
 
 ### IDE ###
 # VS Code
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+.vscode/
 *.code-workspace
 .history/
 
@@ -358,11 +354,7 @@ nginx_cache/
 
 ### IDE ###
 # VS Code
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+.vscode/
 *.code-workspace
 # PyCharm
 .idea/
@@ -481,11 +473,7 @@ docker-compose.override.yml
 .tool-versions
 
 # Visual Studio Code workspace settings
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+.vscode/
 *.code-workspace
 
 ### Enhanced Sections Added 2025-09-03 ###
