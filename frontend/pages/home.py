@@ -148,76 +148,51 @@ def create_piracicaba_map():
 
 
 # Layout da página inicial com mapas em abas
-def layout() -> dbc.Container:
+def layout() -> html.Div:
     """
     Cria o layout da página inicial com mapas interativos em abas.
     
     Returns:
-        dbc.Container: Layout da página inicial
+        html.Div: Layout da página inicial
     """
-    return dbc.Container([
-        dbc.Row([
-            dbc.Col([
-                html.H1("EVAonline - Sistema de Evapotranspiração",
-                        className="text-center mb-4"),
+    return html.Div([
+        html.H1("EVAonline - Sistema de Evapotranspiração", className="text-center mb-4"),
+        html.P(
+            "Selecione um mapa para visualizar os valores de "
+            "evapotranspiração de referência (ETo) em diferentes regiões.",
+            className="text-center lead mb-4"
+        ),
+        
+        # Abas simples com HTML
+        html.Div([
+            html.H4("🌍 Mapa Mundial"),
+            html.Div([create_world_map()], className="p-3 border mb-3"),
+            
+            html.H4("🌾 MATOPIBA, Brasil"),
+            html.Div([
                 html.P(
-                    "Selecione um mapa para visualizar os valores de "
-                    "evapotranspiração de referência (ETo) em diferentes regiões.",
-                    className="text-center lead mb-4"
-                )
-            ], width=12)
-        ]),
-
-        dbc.Row([
-            dbc.Col([
-                dbc.Tabs([
-                    dbc.Tab(
-                        label="🌍 Mapa Mundial",
-                        tab_id="world",
-                        children=[
-                            html.Div([create_world_map()], className="p-3")
-                        ]
-                    ),
-                    dbc.Tab(
-                        label="🌾 MATOPIBA, Brasil",
-                        tab_id="matopiba",
-                        children=[
-                            html.Div([
-                                html.P(
-                                    "Região MATOPIBA (Maranhão, Tocantins, Piauí, "
-                                    "Bahia). Dados atualizados 3x por dia.",
-                                    className="mb-3"
-                                ),
-                                create_matopiba_map()
-                            ], className="p-3")
-                        ]
-                    ),
-                    dbc.Tab(
-                        label="🏙️ Piracicaba, SP, Brasil",
-                        tab_id="piracicaba",
-                        children=[
-                            html.Div([
-                                html.P(
-                                    "Cidade de Piracicaba, SP - Brasil. "
-                                    "Visualização detalhada dos valores de ETo.",
-                                    className="mb-3"
-                                ),
-                                create_piracicaba_map()
-                            ], className="p-3")
-                        ]
-                    )
-                ], active_tab="world")
-            ], width=12)
-        ]),
-
-        dbc.Row([
-            dbc.Col([
-                html.Hr(),
+                    "Região MATOPIBA (Maranhão, Tocantins, Piauí, "
+                    "Bahia). Dados atualizados 3x por dia.",
+                    className="mb-3"
+                ),
+                create_matopiba_map()
+            ], className="p-3 border mb-3"),
+            
+            html.H4("🏙️ Piracicaba, SP, Brasil"),
+            html.Div([
                 html.P(
-                    "💡 Dica: Use as abas acima para alternar entre diferentes "
-                    "visualizações de mapas e explore os dados de ETo.",
-                    className="text-center text-muted"
-                )
-            ], width=12)
-        ])
-    ], fluid=True)
+                    "Cidade de Piracicaba, SP - Brasil. "
+                    "Visualização detalhada dos valores de ETo.",
+                    className="mb-3"
+                ),
+                create_piracicaba_map()
+            ], className="p-3 border mb-3")
+        ], className="mt-4"),
+        
+        html.Hr(),
+        html.P(
+            "💡 Dica: Use as seções acima para ver diferentes "
+            "visualizações de mapas e explore os dados de ETo.",
+            className="text-center text-muted"
+        )
+    ], className="container-fluid")

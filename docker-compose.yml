@@ -1,5 +1,18 @@
 services:
-  # Nginx como proxy reverso e cache de tiles
+  # Redis para cache e message broker
+  redis:
+    image: redis:7-alpine
+    container_name: evaonline-redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-evaonline}
+    command: sh -c "redis-server --requirepass evaonline"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
   nginx:
     image: nginx:alpine
     container_name: evaonline-nginx
@@ -18,7 +31,7 @@ services:
 
   # PostgreSQL com PostGIS para dados geoespaciais
   postgres:
-    image: postgis/postgis:14-3.2-alpine
+    image: postgis/postgis:15-3.4-alpine
     container_name: evaonline-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-evaonline}
@@ -27,27 +40,21 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
+      - ./pg_hba_extra.conf:/tmp/pg_hba_extra.conf
     ports:
       - "5432:5432"
     restart: unless-stopped
+    command: >
+      sh -c "
+        docker-entrypoint.sh postgres &
+        sleep 5 &&
+        cat /tmp/pg_hba_extra.conf >> /var/lib/postgresql/data/pg_hba.conf &&
+        echo \"listen_addresses = '*'\" >> /var/lib/postgresql/data/postgresql.conf &&
+        pkill postgres &&
+        wait
+      "
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evaonline}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Redis para cache e message broker
-  redis:
-    image: redis:alpine
-    container_name: evaonline-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD:-evaonline}
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -143,7 +150,7 @@ services:
       - celery-worker
     restart: unless-stopped
     
-  # Flower para monitoramento do Celery
+  # Flower/Celery para monitoramento do Celery
   flower:
     build:
       context: .
@@ -199,7 +206,7 @@ services:
       - prometheus
     restart: unless-stopped
 
-  # cAdvisor para monitoramento de contêineres
+  # cAdvisor/Grafana para monitoramento de contêineres
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: evaonline-cadvisor

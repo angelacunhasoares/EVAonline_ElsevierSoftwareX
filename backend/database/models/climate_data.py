@@ -1,10 +1,10 @@
 """
 Modelos de banco de dados para armazenamento de resultados ETo.
 """
-from sqlalchemy import Column, Integer, Float, DateTime
-from database.connection import Base
-# integrar com a ferramenta Alembic para gerenciar migrações de 
-# forma automatizada - REFAZER ESSE SCRIPT
+from sqlalchemy import Column, DateTime, Float, Integer
+
+from ..connection import Base
+
 
 class EToResults(Base):
     """
@@ -17,13 +17,13 @@ class EToResults(Base):
     lng = Column(Float, nullable=False)
     elevation = Column(Float, nullable=True)
     date = Column(DateTime, nullable=False)
-    t2m_max = Column(Float, nullable=True)
-    t2m_min = Column(Float, nullable=True)
-    rh2m = Column(Float, nullable=True)
-    ws2m = Column(Float, nullable=True)
-    radiation = Column(Float, nullable=True)
-    precipitation = Column(Float, nullable=True)
-    eto = Column(Float, nullable=False)
+    t2m_max = Column(Float, nullable=True)  # Temperatura máxima
+    t2m_min = Column(Float, nullable=True)  # Temperatura mínima
+    rh2m = Column(Float, nullable=True)     # Umidade relativa
+    ws2m = Column(Float, nullable=True)     # Velocidade do vento
+    radiation = Column(Float, nullable=True)  # Radiação solar
+    precipitation = Column(Float, nullable=True)  # Precipitação
+    eto = Column(Float, nullable=False)     # Evapotranspiração de referência
 
     def __repr__(self):
-        return f"<EToResult(id={self.id}, date={self.date}, eto={self.eto})>"
+        return f"<EToResult(id={self.id}, lat={self.lat}, lng={self.lng}, date={self.date}, eto={self.eto})>"

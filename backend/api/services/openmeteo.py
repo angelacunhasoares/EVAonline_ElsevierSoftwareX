@@ -220,6 +220,10 @@ class OpenMeteoForecastAPI(OpenMeteoAPI):
             "&format=json&models=best_match"
         )
 
+    def build_url(self) -> str:
+        """Build the Open-Meteo Forecast API request URL."""
+        return self._build_request()
+
     @shared_task
     def get_weather_sync(self) -> Tuple[pd.DataFrame, List[str]]:
         """Fetch weather data for today and tomorrow."""
@@ -266,13 +270,13 @@ class OpenMeteoForecastAPI(OpenMeteoAPI):
             na_array = [np.nan] * len_dates
             df = pd.DataFrame({
                 "date": dates,
-                "T2M": hourly_data.get("temperature_2m", na_array),
-                "RH2M": hourly_data.get("relative_humidity_2m", na_array),
-                "ETO": hourly_data.get("et0_fao_evapotranspiration", na_array),
-                "WS10M": hourly_data.get("wind_speed_10m", na_array),
-                "ALLSKY_SFC_SW_DWN": hourly_data.get("shortwave_radiation", na_array),
-                "PRECIP": hourly_data.get("precipitation", na_array),
-                "PRECIP_PROB": hourly_data.get("precipitation_probability", na_array)
+                "T2M": hourly_data.get("temperature_2m", na_array), # Instant/ °C (°F)
+                "RH2M": hourly_data.get("relative_humidity_2m", na_array), # Instant/ %
+                "ETO": hourly_data.get("et0_fao_evapotranspiration", na_array), # Preceding hour sum/ mm (inch)
+                "WS10M": hourly_data.get("wind_speed_10m", na_array), # Instant/ km/h (mph, m/s, knots)
+                "ALLSKY_SFC_SW_DWN": hourly_data.get("shortwave_radiation", na_array), # Preceding hour mean/ W/m²
+                "PRECIP": hourly_data.get("precipitation", na_array), # Preceding hour sum/ mm (inch)
+                "PRECIP_PROB": hourly_data.get("precipitation_probability", na_array) # Preceding hour probability/ %
             }).set_index("date")
 
             if "shortwave_radiation" in hourly_data and df["ALLSKY_SFC_SW_DWN"].mean() < 1:
@@ -349,43 +353,46 @@ def get_openmeteo_elevation(
     cache_expiry_hours = 24  # 24 hours
 
     # Initialize Redis client
+    redis_client = None
     try:
         redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
         redis_client.ping()
+        logger.info("Redis connection successful")
     except Exception as e:
-        msg = f"Failed to connect to Redis: {e}"
-        logger.error(msg)
+        msg = f"Failed to connect to Redis: {e}. Continuing without cache."
+        logger.warning(msg)
         warnings.append(msg)
-        return 0.0, warnings
+        # Don't return here - continue to fetch from API
 
-    # Check cache
-    try:
-        cached_data = redis_client.get(cache_key)
-        if cached_data:
-            # Handle Redis response type (bytes or str)
-            if isinstance(cached_data, bytes):
-                elevation_str = cached_data.decode('utf-8')
-            elif isinstance(cached_data, str):
-                elevation_str = cached_data
-            else:
-                elevation_str = str(cached_data)
+    # Check cache only if Redis is available
+    if redis_client:
+        try:
+            cached_data = redis_client.get(cache_key)
+            if cached_data:
+                # Handle Redis response type (bytes or str)
+                if isinstance(cached_data, bytes):
+                    elevation_str = cached_data.decode('utf-8')
+                elif isinstance(cached_data, str):
+                    elevation_str = cached_data
+                else:
+                    elevation_str = str(cached_data)
 
-            elevation = float(elevation_str)
-            if -1000 <= elevation <= 9000:
-                logger.info(
-                    "Loaded elevation from cache: %s meters",
-                    elevation
-                )
-                return elevation, warnings
+                elevation = float(elevation_str)
+                if -1000 <= elevation <= 9000:
+                    logger.info(
+                        "Loaded elevation from cache: %s meters",
+                        elevation
+                    )
+                    return elevation, warnings
 
-            msg = f"Invalid cached elevation: {elevation}"
+                msg = f"Invalid cached elevation: {elevation}"
+                warnings.append(msg)
+                logger.warning(msg)
+
+        except Exception as e:
+            msg = f"Error accessing Redis cache: {e}"
             warnings.append(msg)
-            logger.warning(msg)
-
-    except Exception as e:
-        msg = f"Error accessing Redis cache: {e}"
-        warnings.append(msg)
-        logger.error(msg)
+            logger.error(msg)
 
     # Exemplo de URL, Jaú, SP, Brasil:
     # https://api.open-meteo.com/v1/elevation?latitude=-22.2964&longitude=-48.5578
@@ -417,21 +424,22 @@ def get_openmeteo_elevation(
             warnings.append(msg)
             return 0.0, warnings
 
-        # Save to cache
-        try:
-            redis_client.setex(
-                cache_key,
-                timedelta(hours=cache_expiry_hours),
-                str(elevation)
-            )
-            logger.info(
-                "Elevation saved to cache: %s meters",
-                elevation
-            )
-        except Exception as e:
-            msg = f"Error saving to cache: {e}"
-            warnings.append(msg)
-            logger.error(msg)
+        # Save to cache only if Redis is available
+        if redis_client:
+            try:
+                redis_client.setex(
+                    cache_key,
+                    timedelta(hours=cache_expiry_hours),
+                    str(elevation)
+                )
+                logger.info(
+                    "Elevation saved to cache: %s meters",
+                    elevation
+                )
+            except Exception as e:
+                msg = f"Error saving to cache: {e}"
+                warnings.append(msg)
+                logger.error(msg)
 
         logger.info(
             "Elevation fetched (lat=%s, long=%s): %s meters",

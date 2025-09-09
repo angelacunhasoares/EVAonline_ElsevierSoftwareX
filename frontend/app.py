@@ -65,13 +65,23 @@ def create_dash_app() -> dash.Dash:
         __name__,
         requests_pathname_prefix="/",
         assets_folder=settings.DASH_ASSETS_FOLDER,
-        external_stylesheets=[dbc.themes.BOOTSTRAP],
+        external_stylesheets=[
+            dbc.themes.BOOTSTRAP,
+            'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+        ],
+        external_scripts=[
+            'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+        ],
         suppress_callback_exceptions=True,
         title=settings.PROJECT_NAME
     )
     
     # Configurar layout inicial
     app.layout = html.Div([
+        # Scripts e CSS necessários para Leaflet
+        html.Link(href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', rel='stylesheet'),
+        html.Script(src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'),
+        
         # NavBar
         dbc.NavbarSimple(
             children=[

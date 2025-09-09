@@ -1,7 +1,9 @@
 import os
+
 from loguru import logger
 from sqlalchemy import create_engine, text
-from api.services.database import get_db_context
+
+from .connection import get_db_context
 
 
 def save_eto_data(data: dict, db_path: str = None):

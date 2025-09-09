@@ -1,8 +1,8 @@
 """
-Inicializa e configura o banco de dados com scripts.
+Inicializa e configura o banco de dados.
 """
-from database.connection import Base, engine
-from database.scripts import create_tables
+from .connection import Base, engine, get_db_context
+from .session_database import get_db
 
 # Módulo de inicialização para importação no app principal
 
@@ -10,4 +10,10 @@ def init_db():
     """
     Inicializa o banco de dados e cria as tabelas.
     """
-    create_tables()
+    try:
+        from .models import EToResults
+        Base.metadata.create_all(bind=engine)
+        print("✅ Tabelas criadas com sucesso!")
+    except Exception as e:
+        print(f"❌ Erro ao criar tabelas: {e}")
+        raise

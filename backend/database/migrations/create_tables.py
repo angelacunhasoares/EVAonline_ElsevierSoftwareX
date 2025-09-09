@@ -1,10 +1,11 @@
 """
 Script para criar tabelas no PostgreSQL.
 """
-import sys
 import logging
-from database.connection import Base, engine
-from database.models import EToResults
+import sys
+
+from ..connection import Base, engine
+from ..models import EToResults
 
 # Configurar logging
 logging.basicConfig(

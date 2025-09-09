@@ -31,10 +31,10 @@ class Settings(BaseSettings):
         "about": "/about",
         "documentation": "/documentation"
     }
-    DASH_ASSETS_FOLDER: str = "frontend/assets"
+    DASH_ASSETS_FOLDER: str = "assets"
     
     # Configurações do Banco de Dados
-    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "localhost")
+    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "127.0.0.1")
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "postgres")
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "evaonline")

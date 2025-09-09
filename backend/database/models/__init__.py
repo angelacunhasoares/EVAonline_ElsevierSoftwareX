@@ -1,6 +1,7 @@
 """
 Exporta todos os modelos de banco de dados.
 """
-from database.models.eto import EToResults
+from .climate_data import EToResults
 
 # Adicione outros modelos conforme necessário
+__all__ = ['EToResults']
