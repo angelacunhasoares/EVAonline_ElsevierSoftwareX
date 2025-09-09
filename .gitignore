@@ -411,7 +411,6 @@ test_*.py
 # Examples and notebooks
 examples/
 notebooks/
-docs/
 
 # Keep specific translation files
 !translations/en.json
