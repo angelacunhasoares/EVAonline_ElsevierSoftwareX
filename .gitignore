@@ -1,8 +1,8 @@
 # ===========================================
-# GITIGNORE - EVAonline (LIMPO E ORGANIZADO)
+# GITIGNORE - EVAonline (CLEAN AND ORGANIZED)
 # ===========================================
-# Arquivos ignorados pelo Git
-# Versão limpa e organizada - Removidas duplicatas
+# Files ignored by Git
+# Clean and organized version - Duplicates removed
 
 # ===========================================
 # Python
@@ -32,7 +32,7 @@ share/python-wheels/
 MANIFEST
 
 # ===========================================
-# Ambientes Virtuais
+# Virtual Environments
 # ===========================================
 .env
 .env.*
@@ -46,7 +46,7 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # ===========================================
-# Testes e Cobertura
+# Testing and Coverage
 # ===========================================
 htmlcov/
 .tox/
@@ -118,7 +118,7 @@ backend/.pytest_cache/
 backend/logs/*.log
 
 # ===========================================
-# Dados Grandes
+# Large Data Files
 # ===========================================
 data/FILE_CSV/
 data/FILE_GEOJSON/
@@ -127,7 +127,7 @@ data/large_files/
 data/backups/
 
 # ===========================================
-# Sistema Operacional
+# Operating System
 # ===========================================
 # macOS
 .DS_Store
@@ -167,7 +167,7 @@ $RECYCLE.BIN/
 *~
 
 # ===========================================
-# Arquivos Temporários
+# Temporary Files
 # ===========================================
 temp/
 tmp/
@@ -176,14 +176,14 @@ tmp/
 *.temp
 
 # ===========================================
-# Distribuição
+# Distribution
 # ===========================================
 dist/
 build/
 *.egg-info/
 
 # ===========================================
-# Node.js (caso use)
+# Node.js (if used)
 # ===========================================
 node_modules/
 npm-debug.log*
@@ -193,7 +193,7 @@ yarn-error.log*
 .yarn-integrity
 
 # ===========================================
-# Backup e Recovery
+# Backup and Recovery
 # ===========================================
 *.bak
 *.backup
@@ -201,14 +201,14 @@ yarn-error.log*
 *~
 
 # ===========================================
-# Configurações Locais
+# Local Configurations
 # ===========================================
 config/local/
 config/development/
 config/production/
 
 # ===========================================
-# Secrets e Chaves
+# Secrets and Keys
 # ===========================================
 secrets/
 keys/
@@ -218,13 +218,13 @@ keys/
 *.p12
 
 # ===========================================
-# Monitoramento
+# Monitoring
 # ===========================================
 monitoring/prometheus/data/
 monitoring/grafana/data/
 
 # ===========================================
-# Documentação Temporária
+# Temporary Documentation
 # ===========================================
 docs/temp/
 docs/drafts/
@@ -373,7 +373,7 @@ Dockerfile.backup
 README.backup
 
 # ===========================================
-# Arquivos Específicos do Projeto (MANTIDOS)
+# Project Specific Files (KEPT)
 # ===========================================
 !translations/en.json
 !translations/pt.json
