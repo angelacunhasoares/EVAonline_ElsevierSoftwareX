@@ -1,8 +1,8 @@
 # ===========================================
-# GITIGNORE - EVAonline
+# GITIGNORE - EVAonline (LIMPO E ORGANIZADO)
 # ===========================================
 # Arquivos ignorados pelo Git
-# Baseado em templates padrão + customizações
+# Versão limpa e organizada - Removidas duplicatas
 
 # ===========================================
 # Python
@@ -60,15 +60,12 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
-.coverage
-coverage.xml
 
 # ===========================================
 # Jupyter Notebook
 # ===========================================
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
-*.ipynb_checkpoints
 .jupyter/
 
 # ===========================================
@@ -76,19 +73,6 @@ coverage.xml
 # ===========================================
 *.manifest
 *.spec
-
-# ===========================================
-# PyBuilder
-# ===========================================
-target/
-
-# ===========================================
-# FastAPI & Dash
-# ===========================================
-# Environment variables
-*.env
-.env.*
-!.env.example
 
 # ===========================================
 # Docker
@@ -132,7 +116,6 @@ assets_generation/**/.ipynb_checkpoints/
 backend/**/__pycache__/
 backend/.pytest_cache/
 backend/logs/*.log
-backend/infrastructure/cache/*.cache
 
 # ===========================================
 # Dados Grandes
@@ -245,425 +228,169 @@ monitoring/grafana/data/
 # ===========================================
 docs/temp/
 docs/drafts/
-database/data/
 
-### Redis ###
-# Redis dump files
+# ===========================================
+# Redis
+# ===========================================
 *.rdb
 *.aof
 dump.rdb
 
-### Celery ###
-# Celery beat schedule file
+# ===========================================
+# Celery
+# ===========================================
 celerybeat-schedule
 celerybeat.pid
 celerybeat-schedule.db
 celery.log
-
-# Celery specific
 *.pid
 .celery
 celerybeat-schedule.*
 
-### Logs ###
-*.log
-logs/
-log/
-*.log.*
-
-### Data ###
-# Data files and directories
-data/temp/
-data/cache/
-data/processed/
-*.csv
-*.xlsx
-*.xls
-*.parquet
-
-### GIS ###
-# GIS and shapefile temporary files
-*.dbf
-*.prj
-*.sbn
-*.sbx
-*.shp
-*.shx
-*.cpg
-*.qpj
-*.lyr
-*.mxd
-
-### System ###
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-### IDE ###
-# VS Code
-.vscode/
-*.code-workspace
-.history/
-
-# PyCharm
-.idea/
-*.iml
-*.iws
-.idea_modules/
-
-### Temp Files ###
-# Temporary files
-*.swp
-*.swo
-*~
-*.tmp
-*.bak
-*.old
-**/logs/
-app.log
-celery.log
-redis.log
-postgres.log
-nginx.log
-
-### Monitoring ###
-# Prometheus data
-prometheus_data/
-# Grafana data
-grafana_data/
-# Grafana logs
-grafana.log
-# Prometheus logs
-prometheus.log
-# Monitoring temporary files
-monitoring/**/*.tmp
-monitoring/**/*.log
-# Docker monitoring logs
-docker/monitoring/**/*.log
-# Keep monitoring configuration files
-!docker/monitoring/prometheus.yml
-!docker/monitoring/grafana/provisioning/**/*.yml
-!docker/monitoring/grafana/dashboards/**/*.json### Nginx ###
-# Nginx cache
-nginx_cache/
-
-### IDE ###
-# VS Code
-.vscode/
-*.code-workspace
-# PyCharm
-.idea/
-*.iml
-*.iws
-.idea_modules/
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-# Outros
-*.swp
-*.swo
-
-### OS ###
-# macOS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-### Project specific ###
-# Data files
-data/
-data/.cache/
-*.tmp
-*.bak
-temp/
-
-# Archived/backup files  
-*.tar.gz
-*.zip
-*.rar
-
-# Development files
-**/temp.py
-**/temp_*.py
-*_temp.py
-**/*_new.py
-*_new.py
-test_*.py
-*_test.py
-
-# Examples and notebooks
-examples/
-notebooks/
-
-# Keep specific translation files
-!translations/en.json
-!translations/pt.json
-
-# Keep template files
-!templates/custom_layer.html
-
-# Docker specific
-docker/**/data/
-.docker/
-docker-compose.override.yml
-
-# Keep Docker configuration files
-!docker/backend/Dockerfile
-!docker/backend/entrypoint.sh
-!docker/nginx/Dockerfile
-!docker/nginx/nginx.conf
-!docker/monitoring/prometheus/Dockerfile
-
-# Empty files in general
-**/*_empty.py
-**/*_temp.*
-**/*_old.*
-**/*_backup.*
-
-# Project specific files to keep
-!data/FILE_CSV/*.csv
-!data/FILE_GEOJSON/*.geojson
-!data/SHAPEFILE_CLIMA_BR/*.shp
-!data/SHAPEFILE_CLIMA_BR/*.shx
-!data/SHAPEFILE_CLIMA_BR/*.dbf
-!docker/monitoring/prometheus.yml
-!docker/monitoring/grafana/provisioning/**/*.yml
-!docker/monitoring/grafana/dashboards/**/*.json
-
-# Keep startup scripts
-!start-monitoring.sh
-!start-monitoring.bat
-
-# Keep documentation
-!GRAFANA_README.md
-
-# Remove status file
-CLEANUP_STATUS.md
-
-# Local development
-docker-compose.override.yml
-.env.local
-.env.development
-.env.production
-.env.staging
-.env.test
-# Temporary environment files
-.env.tmp
-.env.backup
-.env.old
-
-# Database
-*.sqlite3
-*.sqlite
-*.db
-
-# Environment directories
-.python-version
-.ruby-version
-.node-version
-.tool-versions
-
-# Visual Studio Code workspace settings
-.vscode/
-*.code-workspace
-
-### Enhanced Sections Added 2025-09-03 ###
-
-### API Cache & Temporary Files ###
-# Open-Meteo API cache
-.cache/
-openmeteo_cache/
-weather_cache/
-# Temporary API response files
-*.api_response
-*.json.tmp
-*.xml.tmp
-# Request cache files
-requests_cache/
-
-### Data Processing ###
-# Temporary data processing files
+# ===========================================
+# Data Processing
+# ===========================================
 data/temp/
 data/cache/
 data/processing/
 *.processed
 *.intermediate
-# ETo calculation temporary files
 eto_temp/
 eto_cache/
-# GIS processing files
 gis_temp/
 shapefile_temp/
 
-### Testing & Development ###
-# Test output files
+# ===========================================
+# Testing & Development
+# ===========================================
 test_output/
 test_results/
 *.test
 *_test_output.*
-# Coverage reports
-.coverage.*
-coverage/
-htmlcov/
-# Profiling files
 *.prof
 *.lprof
 profile_output/
 
-### Jupyter Enhanced ###
-# Jupyter checkpoints (enhanced)
-.ipynb_checkpoints/
-*/.ipynb_checkpoints/
-**/.ipynb_checkpoints/
-# Jupyter runtime files
-.jupyter/
-jupyter_runtime/
-# Notebook outputs
+# ===========================================
+# Jupyter Enhanced
+# ===========================================
 *.nbconvert.ipynb
 *.nbconvert.html
 
-### Docker Enhanced ###
-# Docker build context
-.dockerignore.tmp
-# Docker layer cache
-.docker/
-# Docker compose overrides
-docker-compose.override.yml
-docker-compose.local.yml
-# Docker volumes (local)
-docker-volumes/
-docker-data/
-
-### Environment Enhanced ###
-# Additional environment files
+# ===========================================
+# Environment Enhanced
+# ===========================================
 .env.backup
 .env.old
 .env.production
 .env.staging
 .env.test
-# Python virtual environments (additional patterns)
 .venv*/
 venv*/
 env*/
 ENV*/
-# Conda environments
 conda-env/
-miniconda/
-anaconda/
 
-### IDE Enhanced ###
-# VS Code additional
-.vscode/settings.json.backup
-.vscode/launch.json.backup
-.vscode/tasks.json.backup
-# PyCharm additional
-.idea/workspace.xml.backup
-.idea/tasks.xml.backup
-# Sublime Text
+# ===========================================
+# IDE Enhanced
+# ===========================================
+*.code-workspace
+.history/
+*.iml
+*.iws
+.idea_modules/
 *.sublime-project
 *.sublime-workspace
 
-### OS Enhanced ###
-# Windows additional
+# ===========================================
+# OS Enhanced
+# ===========================================
 desktop.ini
-$RECYCLE.BIN/
 System Volume Information/
-# Linux additional
-*~
-.nfs*
-# macOS additional (if cross-platform)
-.AppleDouble
-.LSOverride
-Icon
-._*
 .DocumentRevisions-V100
 .fseventsd
 .Spotlight-V100
 .TemporaryItems
-.Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
 
-### Development & Testing ###
-# Test scripts and temporary files
+# ===========================================
+# Development & Testing
+# ===========================================
 test_*.py
 *_test.py
 temp_*.py
 *_temp.py
 *_backup.py
 *_old.py
-# Development logs
 dev_*.log
 development_*.log
-# API testing files
 api_test_*.py
 *_api_test.py
-# Notebook development
 dev_notebooks/
 test_notebooks/
-# Temporary configuration files
 *.config.tmp
 *.yml.tmp
 *.yaml.tmp
 
-### Security ###
-# API keys and secrets (additional patterns)
-secrets/
-keys/
-*.key
-*.pem
-*.crt
-*.p12
-# Password files
+# ===========================================
+# Security
+# ===========================================
 passwords.txt
 credentials.txt
-# Token files
 tokens/
 *.token
 
-### Performance & Debugging ###
-# Performance logs
+# ===========================================
+# Performance & Debugging
+# ===========================================
 perf_*.log
 performance_*.log
-# Debug files
 debug_*.log
 *.debug
-# Memory dumps
 *.dmp
 *.mdmp
-# Core dumps
 core
 core.*
 
-### Backup Files ###
-# Database backups
+# ===========================================
+# Backup Files
+# ===========================================
 *.sql.backup
 *.dump.backup
 *.tar.gz.backup
 *.zip.backup
-# Code backups
 *.py.backup
 *.js.backup
 *.html.backup
-# Config backups
 *.yml.backup
 *.yaml.backup
 *.json.backup
-# Docker backups
 docker-compose.backup
 Dockerfile.backup
-# Environment backups
 .env.backup
-.env.old
-# Project specific backups
 *.md.backup
 README.backup
+
+# ===========================================
+# Arquivos Específicos do Projeto (MANTIDOS)
+# ===========================================
+!translations/en.json
+!translations/pt.json
+!templates/custom_layer.html
+!docker/backend/Dockerfile
+!docker/backend/entrypoint.sh
+!docker/nginx/Dockerfile
+!docker/nginx/nginx.conf
+!docker/monitoring/prometheus/Dockerfile
+!docker/monitoring/prometheus.yml
+!docker/monitoring/grafana/provisioning/**/*.yml
+!docker/monitoring/grafana/dashboards/**/*.json
+!data/FILE_CSV/*.csv
+!data/FILE_GEOJSON/*.geojson
+!data/SHAPEFILE_CLIMA_BR/*.shp
+!data/SHAPEFILE_CLIMA_BR/*.shx
+!data/SHAPEFILE_CLIMA_BR/*.dbf
+!start-monitoring.sh
+!start-monitoring.bat
+!GRAFANA_README.md
