@@ -8,8 +8,6 @@ import pandas as pd
 import plotly.express as px
 from dash import dcc, html
 
-from frontend.components.footer import render_footer
-
 
 def create_world_map():
     """Cria um mapa mundial interativo com geolocalização."""
@@ -393,9 +391,6 @@ def home_layout() -> html.Div:
             ], className="mb-1 shadow-sm"),
 
             # Conteúdo dinâmico da aba (será preenchido pelo callback)
-            html.Div(id='tab-content', children=[create_world_map()]),
-
-            # Footer modularizado com parceiros e desenvolvedores
-            render_footer()
+            html.Div(id='tab-content', children=[create_world_map()])
         ], className="container-fluid")
     ])

@@ -20,6 +20,7 @@ from dash.dependencies import ALL, Input, Output, State
 from timezonefinderL import TimezoneFinder
 
 from config.settings.app_settings import get_settings
+from frontend.components.footer import render_footer
 from frontend.components.navbar import render_navbar
 from frontend.pages.about import about_dash
 from frontend.pages.dash_eto import eto_calculator_dash
@@ -126,7 +127,10 @@ def create_dash_app() -> dash.Dash:
         dcc.Store(id='selected-location', data=None),
         dcc.Store(id='geolocation-error', data=None),
         
-        html.Div(id='page-content')
+        html.Div(id='page-content'),
+        
+        # Footer global (aparece em todas as páginas)
+        render_footer()
     ])
 
     # Callback para roteamento de páginas
