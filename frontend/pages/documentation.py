@@ -5,7 +5,7 @@ import dash_bootstrap_components as dbc
 from dash import html
 
 
-def layout():
+def documentation_layout():
     """
     Layout da página de documentação.
     """
