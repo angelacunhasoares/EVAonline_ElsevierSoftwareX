@@ -1,21 +1,356 @@
-/* Importa a biblioteca de ícones Font Awesome, que é útil para as legendas dos mapas */
-@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');
+/* ============================================
+   EVAonline - Estilos Customizados
+   ESALQ/USP - Sistema de Evapotranspiração
+   ============================================ */
 
-/* Estilo para a legenda do mapa, que é um componente customizado */
-.map-legend {
-    padding: 10px;
-    background-color: rgba(255, 255, 255, 0.8); /* Fundo branco com leve transparência */
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    margin-top: 10px;
+/* Importa a biblioteca de ícones Font Awesome */
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+
+/* ============================================
+   VARIÁVEIS CSS - ESALQ DESIGN SYSTEM
+   ============================================ */
+:root {
+    /* Cores ESALQ */
+    --esalq-green-dark: #2d5016;
+    --esalq-green-light: #4a7c2c;
+    --esalq-green-bg: #f0f4ed;
+
+    /* Cores do sistema */
+    --color-danger: #dc3545;
+    --color-info: #0d6efd;
+    --color-warning: #ffc107;
+    --color-muted: #6c757d;
+    --color-border: #dee2e6;
+
+    /* Tipografia */
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-base: 13px;
+    --font-size-md: 14px;
+    --font-size-lg: 16px;
+
+    /* Espaçamento */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+
+    /* Sombras */
+    --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.2);
+
+    /* Transições */
+    --transition-fast: all 0.2s ease;
+    --transition-normal: all 0.3s ease;
 }
 
+/* ============================================
+   ESTILOS GLOBAIS
+   ============================================ */
+
 /* Garante que o corpo da aplicação ocupe toda a altura da tela */
-html, body {
+html,
+body {
     height: 100%;
     margin: 0;
     padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ============================================
+   UTILITY CLASSES - TIPOGRAFIA
+   ============================================ */
+
+/* Tamanhos de fonte */
+.text-xs {
+    font-size: var(--font-size-xs) !important;
+}
+
+.text-sm {
+    font-size: var(--font-size-sm) !important;
+}
+
+.text-md {
+    font-size: var(--font-size-md) !important;
+}
+
+.text-lg {
+    font-size: var(--font-size-lg) !important;
+}
+
+/* ============================================
+   UTILITY CLASSES - TÍTULOS DE SEÇÃO
+   ============================================ */
+
+.section-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--esalq-green-dark);
+    margin-bottom: var(--spacing-md);
+}
+
+/* ============================================
+   NAVBAR - ESALQ BRANDING
+   ============================================ */
+
+/* Links da navbar com cor branca */
+.nav-link-custom {
+    color: white !important;
+    text-decoration: none;
+    transition: var(--transition-normal);
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+}
+
+.nav-link-custom:hover {
+    background-color: rgba(74, 124, 44, 0.3) !important;
+    color: white !important;
+    transform: translateY(-1px);
+}
+
+/* Botão de idioma com borda branca */
+#language-toggle {
+    color: white !important;
+    border-color: white !important;
+}
+
+#language-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+    border-color: white !important;
+}
+
+/* ============================================
+   CORES ESALQ
+   ============================================ */
+
+/* Botões primários com verde ESALQ */
+.btn-primary {
+    background-color: var(--esalq-green-dark) !important;
+    border-color: var(--esalq-green-dark) !important;
+}
+
+.btn-primary:hover {
+    background-color: var(--esalq-green-light) !important;
+    border-color: var(--esalq-green-light) !important;
+}
+
+/* Links com verde ESALQ (exceto navbar) */
+a:not(.nav-link-custom) {
+    color: var(--esalq-green-dark);
+}
+
+a:not(.nav-link-custom):hover {
+    color: var(--esalq-green-light);
+}
+
+/* Badge verde ESALQ */
+.badge-primary {
+    background-color: var(--esalq-green-dark) !important;
+}
+
+/* ============================================
+   FOOTER - PARCEIROS E DESENVOLVEDORES
+   ============================================ */
+
+/* Container do footer */
+.footer-container {
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+    background-color: #f8f9fa;
+}
+
+/* Logos de parceiros */
+.partner-logo {
+    transition: var(--transition-normal);
+}
+
+.partner-logo:hover {
+    filter: grayscale(0%) !important;
+    opacity: 1 !important;
+    transform: scale(1.1);
+}
+
+.partner-logo-img {
+    height: 50px;
+    margin: 10px 15px;
+    filter: grayscale(30%);
+    opacity: 0.85;
+}
+
+/* Links de email */
+.email-link {
+    color: var(--esalq-green-dark);
+    text-decoration: none;
+    transition: var(--transition-normal);
+}
+
+.email-link:hover {
+    text-decoration: underline !important;
+    color: var(--esalq-green-light) !important;
+}
+
+/* ============================================
+   ACCORDION - SEÇÕES COLAPSÁVEIS
+   ============================================ */
+
+/* Accordion expandido - fundo verde ESALQ claro */
+.accordion-button:not(.collapsed) {
+    background-color: var(--esalq-green-bg) !important;
+    color: var(--esalq-green-dark) !important;
+}
+
+/* Foco no accordion - borda verde */
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(45, 80, 22, 0.25) !important;
+}
+
+.accordion-button {
+    font-size: var(--font-size-md);
+    padding: 0.75rem 1rem;
+}
+
+/* ============================================
+   PAGINAÇÃO DE FAVORITOS
+   ============================================ */
+
+/* Dropdown de paginação - estilo compacto */
+#favorites-page-size {
+    min-height: 28px !important;
+}
+
+#favorites-page-size .Select-control {
+    min-height: 28px !important;
+}
+
+/* ============================================
+   MAPA - LEGENDA
+   ============================================ */
+
+/* Estilo para a legenda do mapa */
+.map-legend {
+    padding: 10px;
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-shadow: var(--shadow-md);
+    font-family: Arial, sans-serif;
+    font-size: var(--font-size-md);
+    margin-top: 10px;
+}
+
+/* ============================================
+   BOTÕES DE AÇÃO RÁPIDA
+   ============================================ */
+
+/* Botões de ação com largura fixa para estabilidade */
+.quick-action-btn {
+    width: 36px;
+    height: 31px;
+    padding: var(--spacing-xs);
+    transition: var(--transition-fast);
+}
+
+.quick-action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-hover);
+}
+
+/* Botões de favoritos com tamanhos específicos */
+.favorite-card-btn {
+    font-size: var(--font-size-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+/* ============================================
+   UTILITÁRIOS - SCROLLBAR CUSTOMIZADO
+   ============================================ */
+
+/* Scrollbar customizado para área de favoritos */
+.favorites-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.favorites-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.favorites-scroll::-webkit-scrollbar-thumb {
+    background: var(--esalq-green-dark);
+    border-radius: 10px;
+}
+
+.favorites-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--esalq-green-light);
+}
+
+/* ============================================
+   UTILITÁRIOS - ANIMAÇÕES E TRANSIÇÕES
+   ============================================ */
+
+/* Animação suave para transições */
+.smooth-transition {
+    transition: var(--transition-normal);
+}
+
+/* ============================================
+   UTILITÁRIOS - SOMBRAS
+   ============================================ */
+
+/* Card com sombra sutil */
+.card-shadow-sm {
+    box-shadow: var(--shadow-sm);
+}
+
+/* ============================================
+   UTILITÁRIOS - CORES ESALQ
+   ============================================ */
+
+/* Texto com cor ESALQ */
+.text-esalq {
+    color: var(--esalq-green-dark) !important;
+}
+
+.text-esalq-light {
+    color: var(--esalq-green-light) !important;
+}
+
+/* Fundo verde ESALQ claro */
+.bg-esalq-light {
+    background-color: var(--esalq-green-bg) !important;
+}
+
+/* ============================================
+   UTILITÁRIOS - CORES DO SISTEMA
+   ============================================ */
+
+.text-danger-custom {
+    color: var(--color-danger) !important;
+}
+
+.text-info-custom {
+    color: var(--color-info) !important;
+}
+
+.text-warning-custom {
+    color: var(--color-warning) !important;
+}
+
+/* ============================================
+   UTILITÁRIOS - ICONS COM TAMANHOS
+   ============================================ */
+
+.icon-xs {
+    font-size: var(--font-size-sm);
+}
+
+.icon-sm {
+    font-size: var(--font-size-md);
+}
+
+.icon-md {
+    font-size: var(--font-size-lg);
 }

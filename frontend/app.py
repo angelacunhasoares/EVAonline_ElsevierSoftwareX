@@ -116,100 +116,6 @@ def create_dash_app() -> dash.Dash:
         title=settings.PROJECT_NAME
     )
     
-    # Adicionar CSS customizado inline
-    app.index_string = '''
-    <!DOCTYPE html>
-    <html>
-        <head>
-            {%metas%}
-            <title>{%title%}</title>
-            {%favicon%}
-            {%css%}
-            <style>
-                /* Links da navbar em branco */
-                .nav-link-custom {
-                    transition: all 0.2s ease;
-                    border-radius: 4px;
-                    color: white !important;
-                }
-                .nav-link-custom:hover {
-                    background-color: rgba(74, 124, 44, 0.3);
-                    transform: translateY(-1px);
-                    color: white !important;
-                }
-                /* Botão de idioma com borda branca */
-                #language-toggle {
-                    color: white !important;
-                    border-color: white !important;
-                }
-                #language-toggle:hover {
-                    background-color: rgba(255, 255, 255, 0.1) !important;
-                    color: white !important;
-                    border-color: white !important;
-                }
-                /* Botões primários com verde ESALQ */
-                .btn-primary {
-                    background-color: #2d5016 !important;
-                    border-color: #2d5016 !important;
-                }
-                .btn-primary:hover {
-                    background-color: #4a7c2c !important;
-                    border-color: #4a7c2c !important;
-                }
-                /* Links com verde ESALQ (exceto navbar) */
-                a:not(.nav-link-custom) {
-                    color: #2d5016;
-                }
-                a:not(.nav-link-custom):hover {
-                    color: #4a7c2c;
-                }
-                /* Badge verde ESALQ */
-                .badge-primary {
-                    background-color: #2d5016 !important;
-                }
-                /* Footer - logos de parceiros com efeito hover */
-                .partner-logo:hover {
-                    filter: grayscale(0%) !important;
-                    opacity: 1 !important;
-                    transform: scale(1.1);
-                }
-                /* Footer - links de email com efeito hover */
-                .email-link:hover {
-                    text-decoration: underline !important;
-                    color: #4a7c2c !important;
-                }
-                /* Accordion - customização verde ESALQ */
-                .accordion-button:not(.collapsed) {
-                    background-color: #f0f4ed !important;
-                    color: #2d5016 !important;
-                }
-                .accordion-button:focus {
-                    box-shadow: 0 0 0 0.25rem rgba(45, 80, 22, 0.25) !important;
-                }
-                .accordion-button {
-                    font-size: 14px;
-                    padding: 0.75rem 1rem;
-                }
-                /* Dropdown de paginação - estilo compacto */
-                #favorites-page-size {
-                    min-height: 28px !important;
-                }
-                #favorites-page-size .Select-control {
-                    min-height: 28px !important;
-                }
-            </style>
-        </head>
-        <body>
-            {%app_entry%}
-            <footer>
-                {%config%}
-                {%scripts%}
-                {%renderer%}
-            </footer>
-        </body>
-    </html>
-    '''
-    
     app.layout = dbc.Container([
         # Navbar modularizada
         render_navbar(settings),
@@ -973,17 +879,25 @@ def create_dash_app() -> dash.Dash:
     @app.callback(
         [Output('favorites-list', 'children'),
          Output('favorites-count', 'children'),
-         Output('favorites-pagination', 'children')],
+         Output('favorites-pagination-info', 'children'),
+         Output('favorites-pagination', 'style'),
+         Output('favorites-prev-page', 'disabled'),
+         Output('favorites-next-page', 'disabled')],
         [Input('favorites-store', 'data'),
          Input('favorites-current-page', 'data'),
          Input('favorites-page-size', 'value')]
     )
     def display_favorites(favorites, current_page, page_size):
         if not favorites or len(favorites) == 0:
-            return (html.P("Nenhum favorito salvo ainda.",
-                          className="text-muted text-center py-3"), 
-                    "0", 
-                    html.Div())
+            return (
+                html.P("Nenhum favorito salvo ainda.",
+                       className="text-muted text-center py-3"), 
+                "0",
+                "",
+                {"display": "none"},  # Esconde paginação
+                True,  # Desabilita prev
+                True   # Desabilita next
+            )
         
         # Calcular paginação
         total_items = len(favorites)
@@ -1061,48 +975,32 @@ def create_dash_app() -> dash.Dash:
                 ], className="mb-1", style={'fontSize': '12px'})
             )
         
-        # Criar controles de paginação (sempre renderiza, mas oculta se 1 página)
-        show_pagination = total_pages > 1
-        pagination_controls = html.Div([
-            html.Div([
-                html.Small(
-                    f"Mostrando {start_idx + 1}-{min(end_idx, total_items)} "
-                    f"de {total_items}",
-                    className="text-muted me-2",
-                    style={"fontSize": "11px"}
-                ),
-                dbc.ButtonGroup([
-                    dbc.Button(
-                        html.I(className="fas fa-chevron-left"),
-                        id="favorites-prev-page",
-                        size="sm",
-                        color="secondary",
-                        outline=True,
-                        disabled=current_page == 1,
-                        style={"fontSize": "10px", "padding": "0.2rem 0.5rem"}
-                    ),
-                    dbc.Button(
-                        f"{current_page} / {total_pages}",
-                        size="sm",
-                        color="light",
-                        disabled=True,
-                        style={"fontSize": "11px", "padding": "0.2rem 0.8rem",
-                               "cursor": "default"}
-                    ),
-                    dbc.Button(
-                        html.I(className="fas fa-chevron-right"),
-                        id="favorites-next-page",
-                        size="sm",
-                        color="secondary",
-                        outline=True,
-                        disabled=current_page == total_pages,
-                        style={"fontSize": "10px", "padding": "0.2rem 0.5rem"}
-                    )
-                ], size="sm")
-            ], className="d-flex justify-content-between align-items-center")
-        ], style={"display": "block" if show_pagination else "none"})
+        # Texto de informação de paginação
+        pagination_text = (
+            f"Página {current_page} de {total_pages} "
+            f"(Mostrando {start_idx + 1}-{min(end_idx, total_items)} de {total_items})"
+        )
         
-        return html.Div(favorites_items), str(total_items), pagination_controls
+        # Controlar visibilidade e estado dos botões
+        show_pagination = total_pages > 1
+        pagination_style = {
+            "display": "flex" if show_pagination else "none",
+            "justifyContent": "center",
+            "alignItems": "center",
+            "marginTop": "0.5rem"
+        }
+        
+        prev_disabled = current_page == 1
+        next_disabled = current_page == total_pages
+        
+        return (
+            html.Div(favorites_items),
+            str(total_items),
+            pagination_text,
+            pagination_style,
+            prev_disabled,
+            next_disabled
+        )
     
     # Callback para navegar entre páginas
     @app.callback(

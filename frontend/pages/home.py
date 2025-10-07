@@ -184,8 +184,28 @@ def create_world_map():
                     ]),
                     # Lista de favoritos
                     html.Div(id="favorites-list", className="small"),
-                    # Controles de navegação de páginas
-                    html.Div(id="favorites-pagination", className="mt-2")
+                    # Controles de navegação de páginas (sempre renderizados, mas ocultos quando não necessários)
+                    html.Div([
+                        dbc.Button(
+                            [html.I(className="fas fa-chevron-left me-1"), "Anterior"],
+                            id="favorites-prev-page",
+                            color="primary",
+                            outline=True,
+                            size="sm",
+                            className="me-2",
+                            style={"fontSize": "11px"}
+                        ),
+                        html.Span(id="favorites-pagination-info", className="mx-2 small"),
+                        dbc.Button(
+                            ["Próxima", html.I(className="fas fa-chevron-right ms-1")],
+                            id="favorites-next-page",
+                            color="primary",
+                            outline=True,
+                            size="sm",
+                            className="ms-2",
+                            style={"fontSize": "11px"}
+                        )
+                    ], id="favorites-pagination", className="mt-2 d-flex justify-content-center align-items-center")
                 ], title=[
                     html.I(className="fas fa-star text-warning me-2"),
                     html.Span("Favoritos ", 
