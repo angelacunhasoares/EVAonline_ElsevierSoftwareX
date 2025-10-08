@@ -62,6 +62,27 @@ coverage.xml
 .pytest_cache/
 
 # ===========================================
+# Old Test Files (Deprecated)
+# ===========================================
+# Ignorar testes antigos APENAS na raiz de tests/
+# Manter tests/integration/ e testes organizados
+/tests/test_db.py
+/tests/test_openmeteo.py
+/tests/test_postgres_connection.py
+/tests/test_psycopg2.py
+/tests/test_raw_postgres.py
+/tests/test_raw_postgres_fixed.py
+/tests/test_redis_postgres_integration.py
+/tests/test_redis_postgres_simple.py
+/tests/test_tcp_connection.py
+/tests/test_forecast_temp.py
+/tests/insert_data.py
+/tests/*.ps1
+/tests/deprecated/
+!tests/conftest.py
+!tests/README.md
+
+# ===========================================
 # Jupyter Notebook
 # ===========================================
 .ipynb_checkpoints
@@ -101,6 +122,18 @@ logs/
 *.log
 loguru/
 *.log.*
+
+# ===========================================
+# Temporary Files and Outputs
+# ===========================================
+temp/
+tmp/
+*.tmp
+*.temp
+temp/*.csv
+temp/*.conf
+temp/*.output
+temp/*.result
 
 # ===========================================
 # Assets Generation
@@ -317,7 +350,8 @@ System Volume Information/
 # ===========================================
 # Development & Testing
 # ===========================================
-test_*.py
+# NOTA: test_*.py removido para permitir tests/integration/test_*.py
+# test_*.py (comentado - bloqueava tests de integração)
 *_test.py
 temp_*.py
 *_temp.py
@@ -325,7 +359,7 @@ temp_*.py
 *_old.py
 dev_*.log
 development_*.log
-api_test_*.py
+# api_test_*.py (comentado - bloqueava tests de API)
 *_api_test.py
 dev_notebooks/
 test_notebooks/
