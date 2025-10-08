@@ -149,7 +149,7 @@ services:
     depends_on:
       - celery-worker
     restart: unless-stopped
-    
+
   # Flower/Celery para monitoramento do Celery
   flower:
     build:
@@ -182,10 +182,10 @@ services:
     ports:
       - "9090:9090"
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
     restart: unless-stopped
 
   # Grafana para visualização de métricas
@@ -197,9 +197,20 @@ services:
       - ./docker/monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./docker/monitoring/grafana/dashboards:/var/lib/grafana/dashboards
     environment:
+      # Admin credentials
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
+
+      # Allow anonymous access (read-only for users)
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+
+      # Disable user signup
       - GF_USERS_ALLOW_SIGN_UP=false
+
+      # Set default home dashboard
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/evaonline-user-dashboard.json
     ports:
       - "3000:3000"
     depends_on:

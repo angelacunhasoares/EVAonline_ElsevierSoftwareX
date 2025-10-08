@@ -1,0 +1,448 @@
+{
+    "dashboard": {
+        "id": null,
+        "uid": "evaonline-user-dashboard",
+        "title": "EVAonline - Visão do Usuário",
+        "description": "Dashboard simplificado com métricas de negócio para usuários finais",
+        "tags": [
+            "evaonline",
+            "user-friendly",
+            "business-metrics"
+        ],
+        "timezone": "browser",
+        "schemaVersion": 38,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+            {
+                "id": 1,
+                "title": "🟢 Status do Sistema",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "up{job='api'}",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "mappings": [
+                            {
+                                "type": "value",
+                                "options": {
+                                    "0": {
+                                        "text": "❌ Offline",
+                                        "color": "red"
+                                    },
+                                    "1": {
+                                        "text": "✅ Online",
+                                        "color": "green"
+                                    }
+                                }
+                            }
+                        ],
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "value": 0,
+                                    "color": "red"
+                                },
+                                {
+                                    "value": 1,
+                                    "color": "green"
+                                }
+                            ]
+                        },
+                        "unit": "none"
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 6,
+                    "x": 0,
+                    "y": 0
+                }
+            },
+            {
+                "id": 2,
+                "title": "⏱️ Tempo de Resposta Médio",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "s",
+                        "decimals": 2,
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "value": 0,
+                                    "color": "green"
+                                },
+                                {
+                                    "value": 1,
+                                    "color": "yellow"
+                                },
+                                {
+                                    "value": 2,
+                                    "color": "red"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 6,
+                    "x": 6,
+                    "y": 0
+                }
+            },
+            {
+                "id": 3,
+                "title": "📊 Consultas Hoje",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "increase(http_requests_total[24h])",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "short",
+                        "decimals": 0,
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "value": 0,
+                                    "color": "blue"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 6,
+                    "x": 12,
+                    "y": 0
+                }
+            },
+            {
+                "id": 4,
+                "title": "⚡ Cache Ativo (%)",
+                "type": "gauge",
+                "targets": [
+                    {
+                        "expr": "(sum(rate(cache_hits_total[5m])) / (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m])))) * 100",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "percent",
+                        "min": 0,
+                        "max": 100,
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "value": 0,
+                                    "color": "red"
+                                },
+                                {
+                                    "value": 50,
+                                    "color": "yellow"
+                                },
+                                {
+                                    "value": 80,
+                                    "color": "green"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 6,
+                    "x": 18,
+                    "y": 0
+                }
+            },
+            {
+                "id": 5,
+                "title": "📈 Consultas por Hora",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "rate(http_requests_total[1h])",
+                        "legendFormat": "Requests/hora",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "reqps"
+                    }
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 4
+                }
+            },
+            {
+                "id": 6,
+                "title": "💾 Performance do Cache",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "rate(cache_hits_total[5m])",
+                        "legendFormat": "✅ Cache Hits",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "rate(cache_misses_total[5m])",
+                        "legendFormat": "❌ Cache Misses",
+                        "refId": "B"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "ops"
+                    }
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 4
+                }
+            },
+            {
+                "id": 7,
+                "title": "🌍 Distribuição de Consultas por Região",
+                "type": "piechart",
+                "targets": [
+                    {
+                        "expr": "sum by (region) (increase(http_requests_total{endpoint=~'.*elevation.*'}[24h]))",
+                        "legendFormat": "{{region}}",
+                        "refId": "A"
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 8,
+                    "x": 0,
+                    "y": 12
+                }
+            },
+            {
+                "id": 8,
+                "title": "⚠️ Taxa de Erro (%)",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "(sum(rate(http_requests_total{status=~'5..'}[5m])) / sum(rate(http_requests_total[5m]))) * 100",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "percent",
+                        "decimals": 2,
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "value": 0,
+                                    "color": "green"
+                                },
+                                {
+                                    "value": 1,
+                                    "color": "yellow"
+                                },
+                                {
+                                    "value": 5,
+                                    "color": "red"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 8,
+                    "x": 8,
+                    "y": 12
+                }
+            },
+            {
+                "id": 9,
+                "title": "🕐 Uptime das Últimas 24h (%)",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "(avg_over_time(up{job='api'}[24h])) * 100",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "percent",
+                        "decimals": 2,
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "value": 0,
+                                    "color": "red"
+                                },
+                                {
+                                    "value": 95,
+                                    "color": "yellow"
+                                },
+                                {
+                                    "value": 99,
+                                    "color": "green"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 8,
+                    "x": 16,
+                    "y": 12
+                }
+            },
+            {
+                "id": 10,
+                "title": "🚀 Endpoints Mais Utilizados",
+                "type": "table",
+                "targets": [
+                    {
+                        "expr": "topk(10, sum by (endpoint) (increase(http_requests_total[24h])))",
+                        "refId": "A",
+                        "format": "table"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "align": "auto",
+                            "displayMode": "auto"
+                        }
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Value"
+                            },
+                            "properties": [
+                                {
+                                    "id": "displayName",
+                                    "value": "Total de Requests"
+                                },
+                                {
+                                    "id": "unit",
+                                    "value": "short"
+                                },
+                                {
+                                    "id": "decimals",
+                                    "value": 0
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 16
+                }
+            },
+            {
+                "id": 11,
+                "title": "💡 Economia de Tempo com Cache",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "(sum(rate(cache_hits_total[24h])) * 1.5)",
+                        "refId": "A"
+                    }
+                ],
+                "description": "Tempo economizado em segundos (assumindo 1.5s por request sem cache)",
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "s",
+                        "decimals": 0,
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "value": 0,
+                                    "color": "blue"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 16
+                }
+            }
+        ],
+        "templating": {
+            "list": []
+        },
+        "annotations": {
+            "list": [
+                {
+                    "builtIn": 1,
+                    "datasource": "-- Grafana --",
+                    "enable": true,
+                    "hide": true,
+                    "iconColor": "rgba(0, 211, 255, 1)",
+                    "name": "Annotations & Alerts",
+                    "type": "dashboard"
+                }
+            ]
+        },
+        "time": {
+            "from": "now-6h",
+            "to": "now"
+        },
+        "timepicker": {
+            "refresh_intervals": [
+                "30s",
+                "1m",
+                "5m",
+                "15m",
+                "30m",
+                "1h"
+            ]
+        }
+    }
+}
