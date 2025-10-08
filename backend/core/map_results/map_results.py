@@ -1,17 +1,19 @@
 # frontend/src/maps.py
-import re
+import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
+
 import dash_leaflet as dl
 import dash_leaflet.express as dlx
-from dash import Dash
 import geopandas as gpd
 import pandas as pd
+from dash import Dash
 from loguru import logger
 
-# O diretório base é definido de forma explícita.
-BASE_DIR = Path(__file__).resolve().parent.parent
+# O diretório base aponta para a raiz do projeto (3 níveis acima)
+# Estrutura: raiz/backend/core/map_results/map_results.py -> raiz/
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 
 app = Dash()
 app.layout = dl.Map(dl.TileLayer(), center=[56, 10], zoom=6, style={"height": "50vh"})
@@ -26,126 +28,42 @@ def style_function_matopiba(feature):
     return {"color": "#FF0000", "weight": 2.5, "fillOpacity": 0}
 
 
-def normalize_text(text):
-    """Normaliza o texto para correspondência de chaves."""
-    if not isinstance(text, str):
-        return ""
-    text = text.lower().replace("º", " ").replace("°", " ")
-    text = text.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u").replace("ç", "c")
-    text = text.replace("â", "a").replace("ê", "e")
-    text = re.sub(r"[^a-z0-9\s-]", "", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-
-
-# Dicionário de cores para cada tipo de clima
-color_map = {
-    'Equatorial, quente - média > 18° C em todos os meses, super-úmido sem seca': '#6A339A', 
-    'Equatorial, quente - média > 18° C em todos os meses, super-úmido subseca': '#A378B9', 
-    'Equatorial, quente - média > 18° C em todos os meses, úmido 1 a 2 meses secos': '#D1AAD1', 
-    'Equatorial, quente - média > 18° C em todos os meses, úmido 3 meses secos': '#E6D4E6', 
-    'Equatorial, subquente - média entre 15 e 18 ° C em pelo menos 1 mês, super-úmido subseca': '#00A651', 
-    'Equatorial, subquente - média entre 15 e 18 ° C em pelo menos 1 mês, úmido 1 a 2 meses secos': '#8BC53F', 
-    'Equatorial, subquente - média entre 15 e 18 ° C em pelo menos 1 mês, úmido 3 meses secos': '#B5D69C', 
-    "Massa d'água": '#aadaff', 'Temperado, mesotérmico brando - média entre 10 e 15° C, super-úmido sem seca': '#00AEEF', 
-    'Temperado, mesotérmico brando - média entre 10 e 15° C, super-úmido subseca': '#66C5EE', 
-    'Temperado, mesotérmico mediano - média > 10° C, super-úmido subseca': '#B3B3B3', 
-    'Temperado, subquente - média entre 15 e 18 ° C em pelo menos 1 mês, super-úmido sem seca': '#00843D', 
-    'Temperado, subquente - média entre 15 e 18 ° C em pelo menos 1 mês, super-úmido subseca': '#00A651', 
-    'Tropical Brasil Central, mesotérmico brando - média entre 10 e 15° C, semi-úmido 4 a 5 meses': '#E6F5FB', 
-    'Tropical Brasil Central, mesotérmico brando - média entre 10 e 15° C, super-úmido sem seca': '#00AEEF', 
-    'Tropical Brasil Central, mesotérmico brando - média entre 10 e 15° C, super-úmido subseca': '#66C5EE', 
-    'Tropical Brasil Central, mesotérmico brando - média entre 10 e 15° C, úmido 1 a 2 meses secos': '#99D9F2', 
-    'Tropical Brasil Central, mesotérmico brando - média entre 10 e 15° C, úmido 3 meses secos': '#CCEBF7', 
-    'Tropical Brasil Central, mesotérmico mediano - média > 10° C, super-úmido sem seca': '#808080', 
-    'Tropical Brasil Central, mesotérmico mediano - média > 10° C, úmido 1 a 2 meses secos': '#D9D9D9', 
-    'Tropical Brasil Central, quente - média > 18° C em todos os meses, semi-árido 6 meses secos': '#FFFFBE', 
-    'Tropical Brasil Central, quente - média > 18° C em todos os meses, semi-árido 7 a 8 meses secos': '#FFFF00', 
-    'Tropical Brasil Central, quente - média > 18° C em todos os meses, semi-árido 9 a 10 meses secos': '#F7941D', 
-    'Tropical Brasil Central, quente - média > 18° C em todos os meses, semi-úmido 4 a 5 meses secos': '#F2EFF2', 
-    'Tropical Brasil Central, quente - média > 18° C em todos os meses, super-úmido sem seca': '#6A339A', 
-    'Tropical Brasil Central, quente - média > 18° C em todos os meses, super-úmido subseca': '#A378B9', 
-    'Tropical Brasil Central, quente - média > 18° C em todos os meses, úmido 1 a 2 meses secos': '#D1AAD1', 
-    'Tropical Brasil Central, quente - média > 18° C em todos os meses, úmido 3 meses secos': '#E6D4E6', 
-    'Tropical Brasil Central, subquente - média entre 15 e 18 ° C em pelo menos 1 mês, semi-árido 6 meses secos': '#EFF6E9', 
-    'Tropical Brasil Central, subquente - média entre 15 e 18 ° C em pelo menos 1 mês, semi-úmido 4 a 5 meses secos': '#D9EAD3', 
-    'Tropical Brasil Central, subquente - média entre 15 e 18 ° C em pelo menos 1 mês, úmido 1 a 2 meses secos': '#8BC53F', 
-    'Tropical Brasil Central, subquente - média entre 15 e 18 ° C em pelo menos 1 mês, úmido 3 meses secos': '#B5D69C', 
-    'Tropical Brasil Central, subquente - média entre 15 e 18º C em pelo menos 1 mês, super-úmido sem seca': '#00843D', 
-    'Tropical Brasil Central, subquente - média entre 15 e 18º C em pelo menos 1 mês, super-úmido subseca': '#00A651', 
-    'Tropical Nordeste Oriental, quente - média > 18 ° C em todos os meses, semi-úmido 4 a 5 meses secos': '#F2EFF2', 
-    'Tropical Nordeste Oriental, quente - média > 18° C em todos os meses, semi-árido 6 meses secos': '#FFFFBE', 
-    'Tropical Nordeste Oriental, quente - média > 18° C em todos os meses, semi-árido 7 a 8 meses secos': '#FFFF00', 
-    'Tropical Nordeste Oriental, quente - média > 18° C em todos os meses, semi-árido 9 a 10 meses secos': '#F7941D', 
-    'Tropical Nordeste Oriental, quente - média > 18° C em todos os meses, super-úmido sem seca': '#6A339A', 
-    'Tropical Nordeste Oriental, quente - média > 18° C em todos os meses, super-úmido subseca': '#A378B9', 
-    'Tropical Nordeste Oriental, quente - média > 18° C em todos os meses, úmido 3 meses secos': '#E6D4E6', 
-    'Tropical Nordeste Oriental, quente - média > 18º C em todos os meses, úmido 1 a 2 meses secos': '#D1AAD1', 
-    'Tropical Nordeste Oriental, subquente - média entre 15 e 18 ° C em pelo menos 1 mês, semi-úmido 4 a 5 meses secos': '#D9EAD3', 
-    'Tropical Nordeste Oriental, subquente - média entre 15 e 18º C em pelo menos 1 mês, úmido 3 meses secos': '#B5D69C', 
-    'Tropical Zona Equatorial, quente - média > 18° C em todos os meses, semi-árido 11 meses secos': '#ED1C24', 
-    'Tropical Zona Equatorial, quente - média > 18° C em todos os meses, semi-árido 6 meses secos': '#FFFFBE', 
-    'Tropical Zona Equatorial, quente - média > 18° C em todos os meses, semi-árido 7 a 8 meses secos': '#FFFF00', 
-    'Tropical Zona Equatorial, quente - média > 18° C em todos os meses, semi-árido 9 a 10 meses secos': '#F7941D', 
-    'Tropical Zona Equatorial, quente - média > 18° C em todos os meses, semi-úmido 4 a 5 meses secos': '#F2EFF2', 
-    'Tropical Zona Equatorial, quente - média > 18° C em todos os meses, super-úmido subseca': '#A378B9', 
-    'Tropical Zona Equatorial, quente - média > 18° C em todos os meses, úmido 1 a 2 meses secos': '#D1AAD1', 
-    'Tropical Zona Equatorial, quente - média > 18° C em todos os meses, úmido 3 meses secos': '#E6D4E6', 
-    'Zona Contígua': '#ADD8E6', 
-    'Zona Costeira': '#ADD8E6', 
-    'Zona Exclusiva': '#ADD8E6'
-}
-normalized_color_map = {normalize_text(k): v for k, v in color_map.items()}
-
-
-def get_color(desc):
-    if pd.isna(desc): return "#808080"  # Cor para dados nulos
-    return normalized_color_map.get(normalize_text(desc), "#E0E0E0")  # Cor padrão
-
-
-def style_function_clima(feature):
-    return {"fillColor": get_color(feature["properties"]["DESC_COMPL"]), "color": "none", "weight": 0, "fillOpacity": 0.7}
-
-# --- FIM DA LÓGICA DE CLIMA ---
-
-
 @lru_cache(maxsize=1)
 def load_all_data():
-    """Carrega e processa todos os arquivos de dados geoespaciais necessários."""
-    logger.info("Iniciando carregamento de dados geoespaciais (cacheado)...")
+    """Carrega dados geoespaciais: Brasil, MATOPIBA e cidades."""
+    logger.info("Carregando dados geoespaciais (cacheado)...")
     try:
-        brasil_gdf = gpd.read_file(BASE_DIR / "data" / "FILE_GEOJSON" / "BR_UF_2024.geojson")
-        matopiba_gdf = gpd.read_file(BASE_DIR / "data" / "FILE_GEOJSON" / "Matopiba_Perimetro.geojson")
-        clima_gdf = gpd.read_file(BASE_DIR / "data" / "SHAPEFILE_CLIMA_BR" / "clima_5000.shp")
-        cities_df = pd.read_csv(BASE_DIR / "data" / "FILE_CSV" / "CITIES_MATOPIBA_337.csv", sep=",")
+        brasil_gdf = gpd.read_file(
+            BASE_DIR / "data" / "geojson" / "BR_UF_2024.geojson"
+        )
+        matopiba_gdf = gpd.read_file(
+            BASE_DIR / "data" / "geojson" / "Matopiba_Perimetro.geojson"
+        )
+        cities_df = pd.read_csv(
+            BASE_DIR / "data" / "csv" / "CITIES_MATOPIBA_337.csv",
+            sep=","
+        )
         
-        clima_gdf.set_crs(epsg=4674, inplace=True, allow_override=True)
-        for gdf in [brasil_gdf, matopiba_gdf, clima_gdf]:
+        # Converter para WGS84 (EPSG:4326) - padrão Leaflet
+        for gdf in [brasil_gdf, matopiba_gdf]:
             gdf.to_crs(epsg=4326, inplace=True)
         
-        logger.info("Dados geoespaciais carregados e processados com sucesso.")
-        return brasil_gdf, matopiba_gdf, clima_gdf, cities_df
+        logger.info("Dados geoespaciais carregados com sucesso.")
+        return brasil_gdf, matopiba_gdf, cities_df
     except Exception as e:
         logger.error(f"Erro ao carregar dados geoespaciais: {e}")
-        return None, None, None, None
+        return None, None, None
 
 
 def create_base_map_layers(t: Dict[str, str]):
-    """Cria as camadas base (clima, estados e contorno do MATOPIBA)."""
-    brasil_gdf, matopiba_gdf, clima_gdf, _ = load_all_data()
+    """Cria as camadas base (estados e contorno do MATOPIBA)."""
+    brasil_gdf, matopiba_gdf, _ = load_all_data()
     
-    if any(x is None for x in [brasil_gdf, matopiba_gdf, clima_gdf]):
+    if any(x is None for x in [brasil_gdf, matopiba_gdf]):
         logger.error("Falha ao carregar GeoDataFrames para o mapa base.")
         return []
 
     layers = [
-        dl.GeoJSON(
-            data=clima_gdf.__geo_interface__,
-            id="clima-brasil",
-            style=style_function_clima,
-            hoverStyle={"fillOpacity": 0.9},
-            options={"name": t.get("climate_brasil", "Brazil Climate")}
-        ),
         dl.GeoJSON(
             data=brasil_gdf.__geo_interface__,
             id="limites-estaduais",
@@ -268,3 +186,145 @@ def create_interactive_map(t: Dict[str, str], heatmap_points=None):
     </div>
     """
     return map_obj, center, zoom, map_desc, legend_html
+
+
+def create_matopiba_real_map():
+    """
+    Cria mapa interativo da região MATOPIBA com dados reais.
+    
+    Retorna um componente html.Div contendo:
+    - Mapa Leaflet com limites do Brasil
+    - Contorno da região MATOPIBA (vermelho)
+    - 337 cidades como marcadores circulares
+    
+    Returns:
+        html.Div: Componente Dash com o mapa MATOPIBA
+    """
+    from dash import html
+    
+    logger.info("Criando mapa MATOPIBA com dados reais")
+    
+    try:
+        # Carregar dados geoespaciais
+        brasil_gdf, matopiba_gdf, cities_df = load_all_data()
+        
+        if any(x is None for x in [brasil_gdf, matopiba_gdf, cities_df]):
+            logger.error("Falha ao carregar dados para mapa MATOPIBA")
+            return html.Div([
+                html.P(
+                    "⚠️ Erro ao carregar dados do mapa MATOPIBA. "
+                    "Verifique os arquivos GeoJSON e CSV.",
+                    className="text-danger text-center p-4"
+                )
+            ])
+        
+        # Criar camadas do mapa
+        layers = [
+            # Camada base do OpenStreetMap
+            dl.TileLayer(),
+            
+            # Limites dos estados do Brasil (cinza)
+            dl.GeoJSON(
+                data=json.loads(brasil_gdf.to_json()),
+                id="limites-brasil-matopiba",
+                style={"fillOpacity": 0, "color": "#505050", "weight": 1},
+                options={"attribution": "IBGE"}
+            ),
+            
+            # Contorno da região MATOPIBA (vermelho)
+            dl.GeoJSON(
+                data=json.loads(matopiba_gdf.to_json()),
+                id="contorno-matopiba-map",
+                style={"color": "#FF0000", "weight": 2.5, "fillOpacity": 0},
+                options={"attribution": "MATOPIBA"}
+            ),
+        ]
+        
+        # Adicionar marcadores das 337 cidades
+        city_markers = []
+        for _, row in cities_df.iterrows():
+            if pd.notna(row["LATITUDE"]) and pd.notna(row["LONGITUDE"]):
+                city_markers.append(
+                    dl.CircleMarker(
+                        center=[row["LATITUDE"], row["LONGITUDE"]],
+                        radius=4,
+                        color="#dc3545",
+                        fillColor="#dc3545",
+                        fillOpacity=0.6,
+                        weight=1,
+                        children=[
+                            dl.Popup(
+                                html.Div([
+                                    html.Strong(
+                                        row.get("CITY", "Cidade"),
+                                        style={"fontSize": "13px"}
+                                    ),
+                                    html.Br(),
+                                    html.Small(
+                                        f"Lat: {row['LATITUDE']:.4f}, "
+                                        f"Lon: {row['LONGITUDE']:.4f}",
+                                        className="text-muted"
+                                    )
+                                ])
+                            )
+                        ]
+                    )
+                )
+        
+        # Adicionar layer group com todas as cidades
+        if city_markers:
+            layers.append(
+                dl.LayerGroup(city_markers, id="cidades-matopiba")
+            )
+        
+        # Criar mapa Leaflet
+        matopiba_map = html.Div([
+            html.P(
+                "Região MATOPIBA (Maranhão, Tocantins, Piauí, Bahia) "
+                "com 337 cidades mapeadas.",
+                className="mb-3 text-muted",
+                style={"fontSize": "14px"}
+            ),
+            dl.Map(
+                children=layers,
+                center=[-10, -47],  # Centro da região MATOPIBA
+                zoom=5,
+                style={
+                    'width': '100%',
+                    'height': '500px',
+                    'borderRadius': '8px',
+                    'border': '1px solid #dee2e6'
+                },
+                id="matopiba-leaflet-map"
+            ),
+            html.Div([
+                html.Small([
+                    html.I(className="fas fa-map-marker-alt text-danger me-1"),
+                    f"{len(city_markers)} cidades mapeadas"
+                ], className="text-muted me-3"),
+                html.Small([
+                    html.I(className="fas fa-border-all text-secondary me-1"),
+                    "Limites estaduais (IBGE)"
+                ], className="text-muted me-3"),
+                html.Small([
+                    html.I(className="fas fa-draw-polygon text-danger me-1"),
+                    "Contorno MATOPIBA"
+                ], className="text-muted")
+            ], className="mt-2 d-flex justify-content-center",
+               style={"fontSize": "12px"})
+        ], className="p-3")
+        
+        logger.info(
+            f"Mapa MATOPIBA criado com sucesso: "
+            f"{len(city_markers)} cidades"
+        )
+        return matopiba_map
+        
+    except Exception as e:
+        logger.error(f"Erro ao criar mapa MATOPIBA: {e}")
+        return html.Div([
+            html.P(
+                f"⚠️ Erro ao criar mapa MATOPIBA: {str(e)}",
+                className="text-danger text-center p-4"
+            )
+        ])

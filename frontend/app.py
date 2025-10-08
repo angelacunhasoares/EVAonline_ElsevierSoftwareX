@@ -19,14 +19,14 @@ from dash import dcc, html
 from dash.dependencies import ALL, Input, Output, State
 from timezonefinderL import TimezoneFinder
 
+from backend.core.map_results.map_results import create_matopiba_real_map
 from config.settings.app_settings import get_settings
 from frontend.components.footer import render_footer
 from frontend.components.navbar import render_navbar
 from frontend.pages.about import about_dash
 from frontend.pages.dash_eto import eto_calculator_dash
 from frontend.pages.documentation import documentation_layout
-from frontend.pages.home import (create_matopiba_map, create_piracicaba_map,
-                                 create_world_map, home_layout)
+from frontend.pages.home import create_world_map, home_layout
 
 settings = get_settings()
 
@@ -214,9 +214,7 @@ def create_dash_app() -> dash.Dash:
         if active_tab == "world-tab":
             return create_world_map()
         elif active_tab == "matopiba-tab":
-            return create_matopiba_map()
-        elif active_tab == "piracicaba-tab":
-            return create_piracicaba_map()
+            return create_matopiba_real_map()
         return "Selecione uma aba"
 
     # Callback para adicionar marker de geolocalização ao store

@@ -1,12 +1,18 @@
 ﻿"""
 Página inicial do EVAonline com mapas interativos em abas.
 """
+import sys
+from pathlib import Path
+
 import dash_bootstrap_components as dbc
 import dash_leaflet as dl
-import numpy as np
-import pandas as pd
-import plotly.express as px
 from dash import dcc, html
+
+# Adicionar backend ao path para importar map_results
+sys.path.insert(
+    0, str(Path(__file__).resolve().parent.parent.parent / "backend")
+)
+from core.map_results.map_results import create_matopiba_real_map
 
 
 def create_world_map():
@@ -261,82 +267,6 @@ def create_world_map():
     ], className="p-3")
 
 
-def create_matopiba_map():
-    """Cria um mapa da região MATOPIBA."""
-    np.random.seed(42)
-    lats = np.random.uniform(-12, -2, 50)
-    lons = np.random.uniform(-50, -40, 50)
-    eto_values = np.random.uniform(3.0, 6.0, 50)
-
-    df = pd.DataFrame({
-        'latitude': lats,
-        'longitude': lons,
-        'eto': eto_values
-    })
-
-    fig = px.scatter_mapbox(df,
-                            lat='latitude',
-                            lon='longitude',
-                            size='eto',
-                            color='eto',
-                            zoom=5,
-                            center={'lat': -7, 'lon': -45},
-                            title='Mapa de ETo: Horários de atualizações',
-                            color_continuous_scale='RdYlBu_r')
-
-    fig.update_layout(
-        mapbox_style='open-street-map',
-        margin=dict(l=0, r=0, t=50, b=0)
-    )
-
-    return html.Div([
-        html.P(
-            "Região MATOPIBA (Maranhão, Tocantins, Piauí, "
-            "Bahia). Dados atualizados 3x por dia.",
-            className="mb-3"
-        ),
-        dcc.Graph(figure=fig)
-    ], className="p-3")
-
-
-def create_piracicaba_map():
-    """Cria um mapa detalhado de Piracicaba."""
-    np.random.seed(123)
-    lats = np.random.uniform(-22.75, -22.65, 30)
-    lons = np.random.uniform(-47.65, -47.55, 30)
-    eto_values = np.random.uniform(2.5, 5.5, 30)
-
-    df = pd.DataFrame({
-        'latitude': lats,
-        'longitude': lons,
-        'eto': eto_values
-    })
-
-    fig = px.scatter_mapbox(df,
-                            lat='latitude',
-                            lon='longitude',
-                            size='eto',
-                            color='eto',
-                            zoom=12,
-                            center={'lat': -22.7, 'lon': -47.6},
-                            title='Piracicaba, SP - Valores de ETo',
-                            color_continuous_scale='YlOrRd')
-
-    fig.update_layout(
-        mapbox_style='open-street-map',
-        margin=dict(l=0, r=0, t=50, b=0)
-    )
-
-    return html.Div([
-        html.P(
-            "Cidade de Piracicaba, SP - Brasil. "
-            "Visualização detalhada dos valores de ETo.",
-            className="mb-3"
-        ),
-        dcc.Graph(figure=fig)
-    ], className="p-3")
-
-
 # Layout da página inicial com mapas em abas (agora com renderização dinâmica)
 def home_layout() -> html.Div:
     """
@@ -370,15 +300,8 @@ def home_layout() -> html.Div:
                                             "padding": "6px 12px"}
                             ),
                             dbc.Tab(
-                                label="🌾 MATOPIBA",
+                                label="🌾 MATOPIBA, Brasil",
                                 tab_id="matopiba-tab",
-                                label_style={"fontSize": "14px",
-                                            "fontWeight": "500",
-                                            "padding": "6px 12px"}
-                            ),
-                            dbc.Tab(
-                                label="🏙️ Piracicaba, SP",
-                                tab_id="piracicaba-tab",
                                 label_style={"fontSize": "14px",
                                             "fontWeight": "500",
                                             "padding": "6px 12px"}
