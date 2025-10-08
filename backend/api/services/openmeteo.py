@@ -13,8 +13,8 @@ from redis import Redis
 from requests.exceptions import RequestException
 
 # Redis configuration
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
-# Default for Docker
+# Prioriza localhost para desenvolvimento local, fallback para Docker
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 
 class OpenMeteoAPI:
@@ -339,14 +339,12 @@ def get_openmeteo_elevation(
     if not (-90 <= lat <= 90):
         msg = "Latitude must be between -90 and 90 degrees"
         logger.error(msg)
-        warnings.append(msg)
-        return 0.0, warnings
+        raise ValueError(msg)
 
     if not (-180 <= long <= 180):
         msg = "Longitude must be between -180 and 180 degrees"
         logger.error(msg)
-        warnings.append(msg)
-        return 0.0, warnings
+        raise ValueError(msg)
 
     # Cache key and settings
     cache_key = f"elevation:{lat}:{long}"

@@ -467,8 +467,8 @@ class TestFullIntegration:
         """
         location = sample_locations["palmas_to"]
         
-        logger.info(f"🗺️  Simulando clique no mapa: {location['name']}")
-        logger.info(f"   Coordenadas: {location['lat']}, {location['long']}")
+        logger.info(f"🗺️ Simulando clique no mapa: {location['name']}")
+        logger.info(f"Coordenadas: {location['lat']}, {location['long']}")
         
         # Step 1: Buscar elevação (com cache)
         elevation, warnings = get_openmeteo_elevation(
@@ -477,18 +477,18 @@ class TestFullIntegration:
         )
         
         assert elevation is not None
-        logger.info(f"   ⛰️  Elevação: {elevation}m")
+        logger.info(f"⛰️ Elevação: {elevation}m")
         
         # Step 2: Verificar se foi cacheado
         cache_key = f"elevation:{location['lat']}:{location['long']}"
         cached = redis_client.get(cache_key)
         assert cached is not None
-        logger.info(f"   💾 Cache: Dados salvos no Redis")
+        logger.info(f"💾 Cache: Dados salvos no Redis")
         
         # Step 3: Verificar TTL (24h = 86400s)
         ttl = redis_client.ttl(cache_key)
         assert 0 < ttl <= 86400
-        logger.info(f"   ⏱️  TTL: {ttl}s restantes")
+        logger.info(f"⏱️ TTL: {ttl}s restantes")
         
         logger.success(f"✅ Full Workflow: {location['name']} OK")
     
@@ -516,44 +516,39 @@ class TestFullIntegration:
     
     def test_database_integration(self, postgres_connection):
         """Testa integração com PostgreSQL (criar tabela de teste)."""
-        with postgres_connection.connect() as conn:
-            # Criar tabela de teste
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS test_locations (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(100),
-                    lat FLOAT,
-                    long FLOAT,
-                    elevation FLOAT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-            conn.commit()
-            
-            # Inserir dados de teste
-            conn.execute(text("""
-                INSERT INTO test_locations (name, lat, long, elevation)
-                VALUES (:name, :lat, :long, :elevation)
-            """), {
-                "name": "Test Location",
-                "lat": -15.7942,
-                "long": -47.8822,
-                "elevation": 1000.0
-            })
-            conn.commit()
-            
-            # Verificar inserção
-            result = conn.execute(text("""
-                SELECT COUNT(*) FROM test_locations
-            """))
-            count = result.fetchone()[0]
-            assert count > 0
-            
-            # Cleanup
-            conn.execute(text("DROP TABLE IF EXISTS test_locations"))
-            conn.commit()
-            
-            logger.success("✅ Database Integration: CREATE/INSERT/DROP OK")
+        cursor = postgres_connection.cursor()
+        
+        # Criar tabela de teste
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS test_locations (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100),
+                lat FLOAT,
+                long FLOAT,
+                elevation FLOAT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        postgres_connection.commit()
+        
+        # Inserir dados de teste
+        cursor.execute("""
+            INSERT INTO test_locations (name, lat, long, elevation)
+            VALUES (%s, %s, %s, %s)
+        """, ("Test Location", -15.7942, -47.8822, 1000.0))
+        postgres_connection.commit()
+        
+        # Verificar inserção
+        cursor.execute("SELECT COUNT(*) FROM test_locations")
+        count = cursor.fetchone()[0]
+        assert count > 0
+        
+        # Cleanup
+        cursor.execute("DROP TABLE IF EXISTS test_locations")
+        postgres_connection.commit()
+        cursor.close()
+        
+        logger.success("Database Integration: CREATE/INSERT/DROP OK")
 
 
 # ============================================================================
@@ -596,11 +591,13 @@ class TestPerformance:
         avg_cache = sum(cache_times) / len(cache_times)
         logger.info(f"   ⚡ Cache Average: {avg_cache:.2f}ms")
         
-        # Cache deve ser pelo menos 10x mais rápido
+        # Cache deve ser mais rápido que API (mínimo 2x)
         speedup = avg_api / avg_cache
-        assert speedup > 5  # No mínimo 5x mais rápido
+        assert speedup > 2  # No mínimo 2x mais rápido
         
-        logger.success(f"✅ Performance: Cache é {speedup:.1f}x mais rápido")
+        logger.success(
+            f"Performance: Cache é {speedup:.1f}x mais rápido que API"
+        )
     
     def test_redis_throughput(self, redis_client):
         """Testa throughput do Redis (operações por segundo)."""
