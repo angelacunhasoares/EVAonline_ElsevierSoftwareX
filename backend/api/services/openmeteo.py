@@ -76,11 +76,32 @@ class OpenMeteoAPI:
         self.cache_expiry_hours = cache_expiry_hours
 
         try:
+            # Tenta conectar com a URL configurada (pode incluir senha)
             self.redis_client = Redis.from_url(REDIS_URL, decode_responses=False)
             self.redis_client.ping()
-        except Exception as e:
-            logger.error("Failed to connect to Redis: %s", e)
-            self.redis_client = None
+        except Exception as auth_error:
+            # Se falhar por autenticação, tenta sem senha (desenvolvimento local)
+            if "AUTH" in str(auth_error) or "authentication" in str(auth_error).lower():
+                try:
+                    logger.warning("Redis AUTH failed, trying without password for local development")
+                    # Extrai host e porta da URL, remove credenciais
+                    import re
+                    match = re.search(r'redis://(?:.*?@)?([^:/]+):?(\d+)?/(\d+)', REDIS_URL)
+                    if match:
+                        host = match.group(1)
+                        port = int(match.group(2) or 6379)
+                        db = int(match.group(3) or 0)
+                        self.redis_client = Redis(host=host, port=port, db=db, decode_responses=False)
+                        self.redis_client.ping()
+                        logger.info(f"Connected to Redis without password at {host}:{port}/{db}")
+                    else:
+                        raise auth_error
+                except Exception as local_error:
+                    logger.error("Failed to connect to Redis (local attempt): %s", local_error)
+                    self.redis_client = None
+            else:
+                logger.error("Failed to connect to Redis: %s", auth_error)
+                self.redis_client = None
 
     def _fetch_data(self, url: str, timeout: int = 10) -> Tuple[dict, List[str]]:
         """Make a synchronous request to the OpenMeteo API with retry.

@@ -58,7 +58,7 @@ case "${SERVICE:-all}" in
 
         # Iniciar worker Celery
         echo "Iniciando Celery Worker..."
-        exec celery -A backend.celery_config worker --loglevel=info --concurrency=2
+        exec celery -A backend.infrastructure.celery.celery_config worker --loglevel=info --concurrency=2
         ;;
 
     "beat")
@@ -67,7 +67,7 @@ case "${SERVICE:-all}" in
 
         # Iniciar Celery Beat
         echo "Iniciando Celery Beat..."
-        exec celery -A backend.celery_config beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+        exec celery -A backend.infrastructure.celery.celery_config beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
         ;;
 
     "flower")
@@ -76,7 +76,7 @@ case "${SERVICE:-all}" in
 
         # Iniciar Flower
         echo "Iniciando Flower..."
-        exec celery -A backend.celery_config flower --address=0.0.0.0 --port=5555
+        exec celery -A backend.infrastructure.celery.celery_config flower --address=0.0.0.0 --port=5555
         ;;
 
     "all")

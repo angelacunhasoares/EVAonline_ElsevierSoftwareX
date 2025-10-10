@@ -87,6 +87,48 @@ celery_app.conf.update(
 
 # Configuração de tarefas periódicas
 celery_app.conf.beat_schedule = {
+    # Limpeza de cache antigo (02:00 BRT)
+    "cleanup-old-climate-cache": {
+        "task": "climate.cleanup_old_cache",
+        "schedule": crontab(hour=2, minute=0),
+    },
+    # Pre-fetch cidades mundiais populares (03:00 BRT)
+    "prefetch-nasa-popular-cities": {
+        "task": "climate.prefetch_nasa_popular_cities",
+        "schedule": crontab(hour=3, minute=0),
+    },
+    # Atualização MATOPIBA - 4x por dia (00h, 06h, 12h, 18h BRT)
+    "update-matopiba-forecasts-00h": {
+        "task": "update_matopiba_forecasts",
+        "schedule": crontab(hour=0, minute=0),  # 00:00 BRT
+        "options": {"queue": "eto_processing"},
+    },
+    "update-matopiba-forecasts-06h": {
+        "task": "update_matopiba_forecasts",
+        "schedule": crontab(hour=6, minute=0),  # 06:00 BRT
+        "options": {"queue": "eto_processing"},
+    },
+    "update-matopiba-forecasts-12h": {
+        "task": "update_matopiba_forecasts",
+        "schedule": crontab(hour=12, minute=0),  # 12:00 BRT
+        "options": {"queue": "eto_processing"},
+    },
+    "update-matopiba-forecasts-18h": {
+        "task": "update_matopiba_forecasts",
+        "schedule": crontab(hour=18, minute=0),  # 18:00 BRT
+        "options": {"queue": "eto_processing"},
+    },
+    # Warm-up cache MATOPIBA (04:00 BRT) - DEPRECATED: usar update-matopiba-forecasts
+    # "warm-cache-matopiba": {
+    #     "task": "climate.warm_cache_matopiba",
+    #     "schedule": crontab(hour=4, minute=0),
+    # },
+    # Estatísticas de cache (a cada hora)
+    "generate-cache-stats": {
+        "task": "climate.generate_cache_stats",
+        "schedule": crontab(minute=0),  # Todo início de hora
+    },
+    # Tasks legadas
     "cleanup-expired-data": {
         "task": "backend.infrastructure.cache.celery_tasks.cleanup_expired_data",
         "schedule": crontab(hour=0, minute=0),  # 00:00 diariamente
@@ -100,6 +142,8 @@ celery_app.conf.beat_schedule = {
 # Descoberta automática de tarefas
 celery_app.autodiscover_tasks([
     "backend.infrastructure.cache.celery_tasks",
+    "backend.infrastructure.cache.climate_tasks",
+    "backend.infrastructure.celery.tasks",  # 🆕 MATOPIBA tasks
     "backend.core.eto_calculation",
     "backend.core.data_processing.data_download",
     "backend.core.data_processing.data_fusion",

@@ -120,45 +120,6 @@ def map_all_cities(t: Dict[str, str], heatmap_points=None):
     return map_obj, center, zoom, map_desc, legend_html
 
 
-def map_piracicaba_city(t: Dict[str, str], heatmap_points=None):
-    """Gera o mapa da cidade de Piracicaba com mapa de calor."""
-    logger.info("Gerando mapa da cidade de Piracicaba")
-    
-    base_layers = create_base_map_layers(t)
-    _, _, _, cities_df = load_all_data()
-    piracicaba_data = cities_df[cities_df['CITY'].str.contains('Piracicaba', case=False, na=False)]
-    heatmap_points = heatmap_points if heatmap_points else [
-        [row["LATITUDE"], row["LONGITUDE"], 1]
-        for _, row in piracicaba_data.iterrows()
-        if pd.notna(row["LATITUDE"]) and pd.notna(row["LONGITUDE"])
-    ]
-    city_markers = [
-        dl.CircleMarker(
-            center=[lat, lon],
-            radius=3,  # Menor raio para detalhe em escala local
-            color="red",
-            fillColor="red",
-            fillOpacity=0.8
-        ) 
-        for lat, lon, _ in heatmap_points
-    ]
-    heatmap_layer = dl.LayerGroup(city_markers, id="heatmap")
-
-    map_obj = dl.LayerGroup(base_layers + [heatmap_layer])
-    center = [-22.725, -47.649]
-    zoom = 10
-    map_desc = t.get("map_desc_piracicaba", "Piracicaba, SP Brasil")
-    legend_html = f"""
-    <div class="map-legend">
-        <b>{t.get('legend', 'Legend')}</b><br>
-        <span style="background: linear-gradient(to right, blue, green, yellow, orange, red); padding: 5px;">&nbsp;</span> {t.get('legend_heatmap', 'City Density')}<br>
-        <span style="color: red; font-size: 16px;">━</span> {t.get('legend_map2_perimeter', 'City Perimeter')}<br>
-        <b>{t.get('source', 'Source')}:</b> IBGE (Perimeter)
-    </div>
-    """
-    return map_obj, center, zoom, map_desc, legend_html
-
-
 def create_interactive_map(t: Dict[str, str], heatmap_points=None):
     """Gera o mapa global interativo para seleção de coordenadas."""
     logger.info("Gerando mapa global interativo")
@@ -328,3 +289,273 @@ def create_matopiba_real_map():
                 className="text-danger text-center p-4"
             )
         ])
+
+
+def create_world_real_map():
+    """
+    Cria mapa mundial interativo com geolocalização, favoritos e ações rápidas.
+    
+    Retorna um componente html.Div contendo:
+    - Mapa Leaflet mundial interativo
+    - Sistema de geolocalização
+    - Painel de ações rápidas
+    - Sistema de favoritos com paginação
+    - Instruções colapsáveis
+    
+    Returns:
+        html.Div: Componente Dash com o mapa mundial completo
+    """
+    import dash_bootstrap_components as dbc
+    import dash_leaflet as dl
+    from dash import dcc, html
+    
+    logger.info("Criando mapa mundial interativo")
+    
+    return html.Div([
+        # Componente de geolocalização
+        dcc.Geolocation(
+            id='geolocation',
+            update_now=False,
+            high_accuracy=True,
+            maximum_age=0,
+            timeout=10000,
+            show_alert=True
+        ),
+
+        # Barra de ferramentas compacta (info + ações alinhados horizontalmente)
+        dbc.Row([
+            dbc.Col([
+                # Informações do local
+                html.Div(id='click-info', 
+                        className="small",
+                        style={'display': 'flex',
+                               'alignItems': 'center',
+                               'justifyContent': 'flex-start'})
+            ], md=8, sm=12),
+            
+            dbc.Col([
+                # Painel de ações rápidas (sem título separado)
+                html.Div([
+                    html.Span([
+                        html.I(className="fas fa-bolt me-1", 
+                               style={"fontSize": "12px"}),
+                        html.Strong("Ações Rápidas:", 
+                                   style={"fontSize": "12px"})
+                    ], className="text-muted me-2"),
+                    html.Div(id='quick-actions-panel', 
+                            children=[
+                                dbc.Button(
+                                    [html.I(className="fas fa-location-arrow")],
+                                    id="get-location-btn",
+                                    color="success",
+                                    size="sm",
+                                    outline=True,
+                                    title="Obter Minha Localização",
+                                    className="me-1"
+                                )
+                            ], 
+                            className="d-inline-flex gap-1")
+                ], style={'display': 'flex', 
+                         'alignItems': 'center',
+                         'justifyContent': 'flex-end'})
+            ], md=4, sm=12)
+        ], className="mb-1 align-items-center"),
+        
+        # Modal para resultados de cálculos
+        dbc.Modal([
+            dbc.ModalHeader(dbc.ModalTitle(id="modal-title")),
+            dbc.ModalBody(id="modal-body"),
+            dbc.ModalFooter(
+                dbc.Button("Fechar", id="close-modal", className="ms-auto")
+            ),
+        ], id="result-modal", size="lg", is_open=False),
+
+        # Mapa Leaflet
+        dl.Map(
+            id="map",
+            children=[dl.TileLayer()],
+            center=[20, 0],
+            zoom=2,
+            minZoom=2,
+            maxBounds=[[-90, -180], [90, 180]],
+            maxBoundsViscosity=1.0,
+            style={
+                'width': '100%',
+                'height': '500px',
+                'cursor': 'pointer',
+                'position': 'relative',
+                'zIndex': 1
+            },
+            dragging=True,
+            scrollWheelZoom=True,
+            doubleClickZoom=True,
+            boxZoom=True,
+            keyboard=True,
+            markerZoomAnimation=True
+        ),
+
+        # Aviso de erro de geolocalização (compacto, acima da legenda)
+        html.Div(id='geolocation-error-msg', className="mt-3 mb-2"),
+
+        # Instruções colapsáveis (Accordion)
+        html.Div([
+            dbc.Accordion([
+                dbc.AccordionItem([
+                    html.Div([
+                        html.Div([
+                            html.I(className="fas fa-location-dot me-2",
+                                  style={"color": "#dc3545", "fontSize": "16px"}),
+                            html.Span("Sua localização", 
+                                     style={"fontSize": "13px", "fontWeight": "500"}),
+                        ], className="d-flex align-items-center mb-2"),
+                        html.Small(
+                            "Clique no botão de localização para marcar sua posição",
+                            className="text-muted d-block ms-4 mb-3",
+                            style={"fontSize": "12px"}
+                        ),
+                        
+                        html.Div([
+                            html.I(className="fas fa-map-pin me-2",
+                                  style={"color": "#0d6efd", "fontSize": "16px"}),
+                            html.Span("Pontos de interesse", 
+                                     style={"fontSize": "13px", "fontWeight": "500"}),
+                        ], className="d-flex align-items-center mb-2"),
+                        html.Small(
+                            "Clique em qualquer local do mapa para adicionar até 9 pontos",
+                            className="text-muted d-block ms-4 mb-3",
+                            style={"fontSize": "12px"}
+                        ),
+                        
+                        html.Div([
+                            html.I(className="fas fa-star me-2",
+                                  style={"color": "#ffc107", "fontSize": "16px"}),
+                            html.Span("Favoritos", 
+                                     style={"fontSize": "13px", "fontWeight": "500"}),
+                        ], className="d-flex align-items-center mb-2"),
+                        html.Small(
+                            "Salve até 20 localizações favoritas para acesso rápido",
+                            className="text-muted d-block ms-4",
+                            style={"fontSize": "12px"}
+                        ),
+                    ])
+                ], title=[
+                    html.I(className="fas fa-info-circle me-2", 
+                          style={"color": "#2d5016"}),
+                    html.Span("Como usar o mapa", 
+                             style={"color": "#2d5016", "fontSize": "14px", "fontWeight": "600"})
+                ])
+            ], start_collapsed=True, flush=True, className="shadow-sm mb-3"),
+            
+            # Seção de favoritos com paginação (Accordion colapsável)
+            dbc.Accordion([
+                dbc.AccordionItem([
+                    # Controles de paginação superiores
+                    html.Div([
+                        html.Div([
+                            html.Label("Itens por página:", 
+                                      className="me-2 small text-muted",
+                                      style={"fontSize": "11px"}),
+                            dcc.Dropdown(
+                                id="favorites-page-size",
+                                options=[
+                                    {"label": "5", "value": 5},
+                                    {"label": "10", "value": 10},
+                                    {"label": "20", "value": 20}
+                                ],
+                                value=5,
+                                clearable=False,
+                                style={"width": "70px", "fontSize": "12px"}
+                            ),
+                            dbc.Button(
+                                [html.I(className="fas fa-trash-alt me-1"),
+                                 html.Span("Limpar Tudo", 
+                                          style={"fontSize": "11px"})],
+                                id="clear-all-favorites-btn",
+                                color="danger",
+                                size="sm",
+                                outline=True,
+                                style={"fontSize": "11px", 
+                                       "padding": "0.25rem 0.5rem",
+                                       "marginLeft": "auto"}
+                            )
+                        ], className="d-flex align-items-center mb-2")
+                    ]),
+                    # Lista de favoritos
+                    html.Div(id="favorites-list", className="small"),
+                    # Controles de navegação de páginas (sempre renderizados, mas ocultos quando não necessários)
+                    html.Div([
+                        dbc.Button(
+                            [html.I(className="fas fa-chevron-left me-1"), "Anterior"],
+                            id="favorites-prev-page",
+                            color="primary",
+                            outline=True,
+                            size="sm",
+                            className="me-2",
+                            style={"fontSize": "11px"}
+                        ),
+                        html.Span(id="favorites-pagination-info", className="mx-2 small"),
+                        dbc.Button(
+                            ["Próxima", html.I(className="fas fa-chevron-right ms-1")],
+                            id="favorites-next-page",
+                            color="primary",
+                            outline=True,
+                            size="sm",
+                            className="ms-2",
+                            style={"fontSize": "11px"}
+                        )
+                    ], id="favorites-pagination", className="mt-2 d-flex justify-content-center align-items-center")
+                ], title=[
+                    html.I(className="fas fa-star text-warning me-2"),
+                    html.Span("Favoritos ", 
+                             style={"fontSize": "14px", "fontWeight": "600"}),
+                    dbc.Badge(id="favorites-count", 
+                             color="primary", 
+                             className="ms-2",
+                             style={"fontSize": "11px"})
+                ])
+            ], start_collapsed=True, flush=True, className="shadow-sm mb-3"),
+            
+            # Modal de confirmação para limpar favoritos
+            dbc.Modal([
+                dbc.ModalHeader(
+                    dbc.ModalTitle([
+                        html.I(className="fas fa-exclamation-triangle "
+                                        "text-warning me-2"),
+                        "Confirmar Exclusão"
+                    ])
+                ),
+                dbc.ModalBody([
+                    html.P([
+                        "Tem certeza que deseja ",
+                        html.Strong("excluir TODOS os favoritos", 
+                                   style={"color": "#dc3545"}),
+                        "?"
+                    ], className="mb-2"),
+                    html.P([
+                        html.I(className="fas fa-info-circle me-2 text-info"),
+                        html.Span(id="clear-favorites-count", 
+                                 className="text-muted small")
+                    ], className="mb-0")
+                ]),
+                dbc.ModalFooter([
+                    dbc.Button(
+                        "Cancelar",
+                        id="cancel-clear-favorites",
+                        color="secondary",
+                        outline=True,
+                        size="sm"
+                    ),
+                    dbc.Button(
+                        [html.I(className="fas fa-trash-alt me-2"),
+                         "Sim, Excluir Tudo"],
+                        id="confirm-clear-favorites",
+                        color="danger",
+                        size="sm"
+                    )
+                ])
+            ], id="clear-favorites-modal", is_open=False, centered=True),
+            
+            # Stores para paginação
+            dcc.Store(id='favorites-current-page', data=1)
+        ], className="mt-3")
+    ], className="p-3")

@@ -14,19 +14,23 @@ import dash
 import dash_bootstrap_components as dbc
 import dash_leaflet as dl
 import pytz
-import requests
 from dash import dcc, html
 from dash.dependencies import ALL, Input, Output, State
+from loguru import logger
 from timezonefinderL import TimezoneFinder
 
-from backend.core.map_results.map_results import create_matopiba_real_map
+from backend.api.services.openmeteo import get_openmeteo_elevation
+from backend.core.map_results.map_results import create_world_real_map
+from backend.core.map_results.matopiba_forecasts import (
+    create_matopiba_forecast_section, fetch_forecast_data, render_maps,
+    update_selection_summary)
 from config.settings.app_settings import get_settings
 from frontend.components.footer import render_footer
 from frontend.components.navbar import render_navbar
 from frontend.pages.about import about_dash
 from frontend.pages.dash_eto import eto_calculator_dash
 from frontend.pages.documentation import documentation_layout
-from frontend.pages.home import create_world_map, home_layout
+from frontend.pages.home import home_layout
 
 settings = get_settings()
 
@@ -84,17 +88,31 @@ def render_page_content(pathname):
 
 
 def get_elevation(lat: float, lon: float) -> float | None:
-    """Busca altitude via API, com cache simples (em prod, use Redis)."""
-    try:
-        url = f"https://api.open-meteo.com/v1/elevation?latitude={lat}&longitude={lon}"
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            elevations = data.get('elevation', [])
-            return elevations[0] if elevations else None
-    except requests.RequestException as e:
-        print(f"Erro na API de elevação: {e}")  # Logue em prod
-    return None
+    """
+    Busca altitude usando a API robusta do OpenMeteo com cache Redis.
+    
+    Wrapper para manter compatibilidade com código existente.
+    Usa get_openmeteo_elevation que inclui cache Redis, validação e logs.
+    
+    Args:
+        lat: Latitude (-90 a 90)
+        lon: Longitude (-180 a 180)
+        
+    Returns:
+        float | None: Elevação em metros ou None se erro
+    """
+    elevation, warnings = get_openmeteo_elevation(lat=lat, long=lon)
+    
+    # Log warnings se houver
+    if warnings:
+        for warning in warnings:
+            logger.warning(f"Elevation API: {warning}")
+    
+    # Retornar None se elevação for 0.0 com warnings (indica erro)
+    if elevation == 0.0 and warnings:
+        return None
+    
+    return elevation
 
 
 def create_dash_app() -> dash.Dash:
@@ -212,10 +230,59 @@ def create_dash_app() -> dash.Dash:
     )
     def render_tab_content(active_tab):
         if active_tab == "world-tab":
-            return create_world_map()
+            return create_world_real_map()
         elif active_tab == "matopiba-tab":
-            return create_matopiba_real_map()
+            return create_matopiba_forecast_section()
         return "Selecione uma aba"
+
+    # =========================================================================
+    # CALLBACKS MATOPIBA
+    # =========================================================================
+    
+    # Callback para buscar dados de previsão MATOPIBA
+    @app.callback(
+        Output("matopiba-forecast-data", "data"),
+        Output("matopiba-status-bar", "children"),
+        Input("matopiba-refresh-interval", "n_intervals")
+    )
+    def matopiba_fetch_data(n_intervals):
+        print(f"🔍 DEBUG FETCH APP: Triggered by n_intervals={n_intervals}")  # 🆕
+        return fetch_forecast_data(n_intervals)
+    
+    # Callback para resumo da seleção MATOPIBA
+    @app.callback(
+        Output("matopiba-selection-summary", "children"),
+        Input("matopiba-var-selector", "value"),
+        Input("matopiba-days-selector", "value")
+    )
+    def matopiba_update_summary(selected_vars, selected_days):
+        return update_selection_summary(selected_vars, selected_days)
+    
+    # Callback para renderizar mapas MATOPIBA
+    @app.callback(
+        Output("matopiba-maps-container", "children"),
+        Input("matopiba-forecast-data", "data"),
+        Input("matopiba-var-selector", "value"),
+        Input("matopiba-days-selector", "value")
+    )
+    def matopiba_render_maps(forecast_data, selected_vars, selected_days):
+        print(f"🎨 DEBUG RENDER APP: Data={'OK' if forecast_data else 'VAZIO'}, vars={selected_vars}, days={selected_days}")  # 🆕
+        
+        if not forecast_data or not forecast_data.get("forecasts"):
+            print("⚠️ DEBUG RENDER APP: Sem dados - retornando alerta")  # 🆕
+            return dbc.Alert("⚠️ Dados indisponíveis. Aguarde 5s ou cheque logs.", color="warning")
+        
+        if not selected_vars or not selected_days:
+            print("ℹ️ DEBUG RENDER APP: Sem seleções - retornando alerta")  # 🆕
+            return dbc.Alert("ℹ️ Selecione ETo e Hoje para ver o mapa.", color="info")
+        
+        result = render_maps(forecast_data, selected_vars, selected_days)
+        print(f"✅ DEBUG RENDER APP: Mapas gerados - retornando componentes")  # 🆕
+        return result
+
+    # =========================================================================
+    # CALLBACKS GERAIS
+    # =========================================================================
 
     # Callback para adicionar marker de geolocalização ao store
     @app.callback(

@@ -1,0 +1,95 @@
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Beat as Celery Beat<br/>(Scheduler)
+    participant Worker as Celery Worker<br/>(Background)
+    participant Task as update_matopiba_forecasts<br/>(Task)
+    participant API_OM as Open-Meteo API<br/>(External)
+    participant ETo as eto_hourly.py<br/>(R²=0.83)
+    participant Redis as Redis Cache<br/>(TTL: 6h)
+    participant API as Backend API<br/>(FastAPI)
+    participant Frontend as Frontend Map<br/>(Interface)
+
+    rect rgb(220, 240, 255)
+    Note over Beat: 00h, 06h, 12h, 18h BRT<br/>Agendamento automático
+    Beat->>+Worker: Trigger task (cron)
+    Worker->>+Task: Execute update_matopiba_forecasts()
+    
+    Note over Task: STEP 1/4: Fetch Data
+    Task->>+API_OM: GET forecasts (337 cidades)
+    Note over API_OM: 2 dias × 48h × 12 vars<br/>~200k data points
+    API_OM-->>-Task: JSON hourly data (~2MB)
+    Note over Task: Duração: ~30-40s
+    
+    Note over Task: STEP 2/4: Calculate ETo
+    Task->>+ETo: calculate_eto_hourly(hourly_df)
+    Note over ETo: Penman-Monteith<br/>Nighttime fix (Cn/Cd)
+    ETo-->>-Task: ETo_EVAonline (337×48h)
+    Note over Task: Duração: ~20-30s
+    
+    Note over Task: STEP 3/4: Validate (não bloqueia!)
+    Task->>Task: Calcular R², RMSE, Bias
+    alt R² ≥ 0.75 e RMSE ≤ 1.2
+        Note over Task: ✅ EXCELENTE<br/>Log: Quality check passed
+    else R² ≥ 0.65 e RMSE ≤ 1.5
+        Note over Task: ⚠️ ACEITÁVEL<br/>Log: Quality acceptable
+    else R² < 0.65
+        Note over Task: ⚠️ REVISAR<br/>Log: Quality below expected<br/>BUT CACHE ANYWAY!
+    end
+    
+    Note over Task: STEP 4/4: Save Redis
+    Task->>+Redis: SETEX forecasts (pickle, TTL=6h)
+    Task->>Redis: SETEX metadata (JSON, TTL=6h)
+    Redis-->>-Task: OK (stored)
+    Note over Task: Duração: ~1-2s
+    
+    Task-->>-Worker: SUCCESS (total: ~60-90s)
+    Worker-->>-Beat: Task completed
+    end
+
+    rect rgb(220, 255, 220)
+    Note over Frontend: Usuário acessa mapa<br/>(qualquer horário)
+    Frontend->>+API: GET /api/v1/matopiba/forecasts
+    API->>+Redis: GET forecasts
+    
+    alt Cache HIT (dados válidos)
+        Redis-->>API: Data (500KB pickle)
+        Note over API: Deserialize + format<br/>~50ms total
+        API-->>Frontend: JSON (337 cidades × 2 dias)
+        Note over Frontend: ✅ Renderiza instantâneo!<br/>Mostra última atualização
+    else Cache MISS (expirado/vazio)
+        Redis-->>API: nil (cache expired)
+        API-->>Frontend: 503 Service Unavailable
+        Note over Frontend: ⚠️ "Dados temporariamente<br/>indisponíveis"
+    end
+    
+    deactivate Redis
+    deactivate API
+    end
+
+    rect rgb(255, 220, 220)
+    Note over Beat,Frontend: CENÁRIO DE EXCEÇÃO:<br/>Open-Meteo indisponível
+    Beat->>Worker: Trigger task (12:00)
+    Worker->>Task: Execute
+    Task->>API_OM: GET forecasts
+    API_OM--xTask: Timeout ❌
+    Note over Task: Retry 1/3 (após 5min)
+    Task->>API_OM: GET forecasts (retry)
+    API_OM--xTask: Timeout ❌
+    Note over Task: Retry 2/3 (após 5min)
+    Task->>API_OM: GET forecasts (retry)
+    API_OM--xTask: Timeout ❌
+    Note over Task: Retry 3/3 (após 5min)
+    Task->>API_OM: GET forecasts (retry)
+    API_OM--xTask: Timeout ❌
+    Note over Task: TASK FAILED<br/>(após 3 tentativas)
+    Task-->>Worker: FAILURE
+    
+    Note over Redis: Cache antigo (06:00)<br/>AINDA VÁLIDO até 12:00 ✅
+    Frontend->>API: GET /api/v1/matopiba/forecasts
+    API->>Redis: GET forecasts
+    Redis-->>API: Data from 06:00 (old but valid)
+    API-->>Frontend: JSON (dados de 6h atrás)
+    Note over Frontend: ⚠️ Usuário vê dados antigos<br/>mas funciona!
+    end
+```

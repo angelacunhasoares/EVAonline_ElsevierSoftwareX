@@ -8,13 +8,14 @@ Este módulo implementa:
 - Controle de qualidade
 """
 
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-from sklearn.impute import KNNImputer
 from celery import shared_task
 from loguru import logger
-from typing import List, Tuple, Dict, Any, Optional
-from datetime import datetime
+from sklearn.impute import KNNImputer
 
 # Configuração do logging
 logger.add(
@@ -37,42 +38,81 @@ def data_fusion(
     self,
     dfs: List[dict],
     ensemble_size: int = 50,
-    inflation_factor: float = 1.02
+    inflation_factor: float = 1.02,
+    source_names: Optional[List[str]] = None
 ) -> Tuple[Dict[str, Any], List[str]]:
     """
     Realiza a fusão de dados meteorológicos usando Filtro de Kalman Ensemble.
 
+    ⚠️ IMPORTANTE: Valida conformidade de licenças antes da fusão.
+    Open-Meteo (CC-BY-NC 4.0) não pode ser usado em fusão de dados.
+
     Args:
         dfs: Lista de dicionários com dados de diferentes fontes
         ensemble_size: Tamanho do ensemble para o filtro
-        inflation_factor: Fator de inflação para evitar subestimação da variância
+        inflation_factor: Fator de inflação para evitar subestimação
+                         da variância
+        source_names: Lista opcional com nomes das fontes
+                     (para validação de licença)
 
     Returns:
         Tuple[Dict[str, Any], List[str]]: Estado analisado após fusão e avisos.
     
     Raises:
-        ValueError: Se os dados de entrada forem inválidos
-    """
-    """
-    Realiza a fusão de dados com Kalman Ensemble para múltiplas fontes.
-
-    Args:
-        dfs: Lista de dicionários contendo DataFrames com dados climáticos.
-        ensemble_size: Número de membros do ensemble (padrão: 50).
-        inflation_factor: Fator de inflação (padrão: 1.02).
-
-    Returns:
-        Tuple[dict, List[str]]: Dicionário com o estado analisado após fusão e lista de avisos.
-
+        ValueError: Se os dados de entrada forem inválidos ou se houver
+                   violação de licença (Open-Meteo em fusão)
+    
     Example:
         >>> dfs = [df1.to_dict(), df2.to_dict()]
-        >>> result, warnings = data_fusion(dfs)
+        >>> result, warnings = data_fusion(
+        ...     self,
+        ...     dfs,
+        ...     source_names=["nasa_power", "met_norway"]
+        ... )
     """
     warnings = []
     dataframes = []
     
     try:
         logger.info("Iniciando fusão de dados com Kalman Ensemble")
+        
+        # ==========================================
+        # VALIDAÇÃO DE CONFORMIDADE DE LICENÇA
+        # ==========================================
+        if source_names:
+            # Lista de fontes bloqueadas (licenças não-comerciais)
+            blocked_sources = {
+                "openmeteo": "Open-Meteo (CC-BY-NC 4.0)",
+                "openmeteo_forecast": "Open-Meteo Forecast (CC-BY-NC 4.0)",
+                "openmeteo_archive": "Open-Meteo Archive (CC-BY-NC 4.0)"
+            }
+            
+            # Verificar se alguma fonte bloqueada está na lista
+            blocked_found = []
+            for source_name in source_names:
+                source_lower = source_name.lower()
+                if source_lower in blocked_sources:
+                    blocked_found.append(blocked_sources[source_lower])
+            
+            if blocked_found:
+                blocked_str = ", ".join(blocked_found)
+                error_msg = (
+                    f"❌ LICENSE VIOLATION: {blocked_str} cannot be "
+                    f"used in data fusion. These sources have "
+                    f"non-commercial licenses (CC-BY-NC 4.0) that "
+                    f"restrict data fusion and commercial use. "
+                    f"Allowed for visualization only in MATOPIBA map. "
+                    f"Please use only commercial-compatible sources: "
+                    f"NASA POWER (public domain), MET Norway (CC-BY 4.0), "
+                    f"NWS/NOAA (public domain)."
+                )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            
+            logger.info(
+                "✅ License validation passed. Sources: %s",
+                ", ".join(source_names)
+            )
         
         # Validação inicial dos dados
         if len(dfs) < 2:

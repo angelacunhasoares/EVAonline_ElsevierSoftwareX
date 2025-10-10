@@ -9,10 +9,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # Configurações do PostgreSQL - usando variáveis de ambiente ou valores padrão
-PG_HOST = os.getenv("POSTGRES_HOST", "postgres")
+PG_HOST = os.getenv("POSTGRES_HOST", "localhost")
 PG_PORT = os.getenv("POSTGRES_PORT", "5432")
 PG_USER = os.getenv("POSTGRES_USER", "evaonline")
-PG_PASSWORD = os.getenv("POSTGRES_PASSWORD", "123456")
+PG_PASSWORD = os.getenv("POSTGRES_PASSWORD", "evaonline")
 PG_DB = os.getenv("POSTGRES_DB", "evaonline")
 
 # URL de conexão com o PostgreSQL

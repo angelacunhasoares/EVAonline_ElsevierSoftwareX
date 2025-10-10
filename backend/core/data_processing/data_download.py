@@ -254,14 +254,17 @@ def download_weather_data(
                     df_dict[key] = row.to_dict()
                 df_dicts.append(df_dict)
             
-            # Executa fusão
-            task = data_fusion.delay(df_dicts)
+            # Executa fusão com validação de licença
+            task = data_fusion.delay(
+                df_dicts,
+                source_names=sources  # Passa nomes das fontes p/ validação
+            )
             weather_data_dict, fusion_warnings = task.get(timeout=10)
             warnings_list.extend(fusion_warnings)
             
             # Converte resultado para DataFrame
             weather_data = pd.DataFrame.from_dict(
-                weather_data_dict, 
+                weather_data_dict,
                 orient='index'
             )
             weather_data.index = pd.to_datetime(weather_data.index)
