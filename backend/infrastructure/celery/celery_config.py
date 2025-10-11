@@ -74,7 +74,7 @@ celery_app.conf.update(
         "backend.core.data_processing.data_download.*": {"queue": "data_download"},
         "backend.core.data_processing.data_fusion.*": {"queue": "data_processing"},
         "backend.api.services.openmeteo.*": {"queue": "elevation"},
-        "backend.utils.data_utils.*": {"queue": "general"},
+        # REMOVIDO: backend.utils.data_utils.* (não contém tasks Celery)
     },
     task_queues=(
         Queue("general"),
@@ -148,5 +148,5 @@ celery_app.autodiscover_tasks([
     "backend.core.data_processing.data_download",
     "backend.core.data_processing.data_fusion",
     "backend.api.services.openmeteo",
-    "backend.utils.data_utils"
+    # "backend.utils.data_utils"  # REMOVIDO: utils não tem tasks Celery (módulo compartilhado na raiz)
 ])

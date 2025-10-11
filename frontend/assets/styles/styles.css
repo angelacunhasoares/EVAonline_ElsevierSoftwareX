@@ -354,3 +354,155 @@ a:not(.nav-link-custom):hover {
 .icon-md {
     font-size: var(--font-size-lg);
 }
+
+/* ============================================
+   LEAFLET - TOOLTIPS E POPUPS
+   ============================================ */
+
+/* 🔧 FIX: Garantir visibilidade dos tooltips do Leaflet */
+.leaflet-tooltip {
+    position: absolute;
+    padding: 6px 10px !important;
+    background-color: white !important;
+    border: 1px solid #ccc !important;
+    border-radius: 4px !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+    white-space: nowrap !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: #333 !important;
+    z-index: 1000 !important;
+    pointer-events: none !important;
+    opacity: 1 !important;
+    display: block !important;
+    visibility: visible !important;
+}
+
+/* Seta do tooltip */
+.leaflet-tooltip-bottom:before {
+    top: 0;
+    margin-top: -12px;
+    margin-left: -6px;
+    border-bottom-color: white;
+}
+
+.leaflet-tooltip-top:before {
+    bottom: 0;
+    margin-bottom: -12px;
+    margin-left: -6px;
+    border-top-color: white;
+}
+
+/* Popups do Leaflet */
+.leaflet-popup {
+    position: absolute;
+    z-index: 1010 !important;
+    opacity: 1 !important;
+    display: block !important;
+    visibility: visible !important;
+}
+
+.leaflet-popup-content-wrapper {
+    background-color: white !important;
+    border-radius: 6px !important;
+    box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4) !important;
+    padding: 1px !important;
+}
+
+.leaflet-popup-content {
+    margin: 10px 12px !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+    min-width: 150px !important;
+}
+
+/* Fechar popup */
+.leaflet-popup-close-button {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 4px 8px;
+    font-size: 18px;
+    color: #c3c3c3;
+    text-decoration: none;
+    font-weight: bold;
+    background: transparent;
+}
+
+.leaflet-popup-close-button:hover {
+    color: #999;
+}
+
+/* Seta do popup */
+.leaflet-popup-tip-container {
+    width: 40px;
+    height: 20px;
+    position: absolute;
+    left: 50%;
+    margin-left: -20px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.leaflet-popup-tip {
+    width: 17px;
+    height: 17px;
+    padding: 1px;
+    margin: -10px auto 0;
+    transform: rotate(45deg);
+    background: white;
+    box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* 🔧 FIX: Garantir que marcadores tenham cursor pointer */
+.leaflet-interactive {
+    cursor: pointer !important;
+}
+
+/* 🔧 FIX: Garantir z-index correto para tooltips sobre outros elementos */
+.leaflet-pane {
+    z-index: auto;
+}
+
+.leaflet-tooltip-pane {
+    z-index: 1000 !important;
+}
+
+.leaflet-popup-pane {
+    z-index: 1010 !important;
+}
+
+/* 🆕 Classes customizadas para tooltips e popups do MATOPIBA */
+.custom-tooltip {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border: 2px solid var(--esalq-green-dark) !important;
+    border-radius: 6px !important;
+    box-shadow: 0 3px 8px rgba(45, 80, 22, 0.3) !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: var(--esalq-green-dark) !important;
+    padding: 8px 12px !important;
+    z-index: 1000 !important;
+}
+
+.custom-popup .leaflet-popup-content-wrapper {
+    border: 2px solid var(--esalq-green-dark) !important;
+}
+
+/* 🎨 Marcadores SVG customizados do MATOPIBA */
+.custom-marker {
+    cursor: pointer !important;
+    transition: transform 0.2s ease !important;
+}
+
+.custom-marker:hover {
+    transform: scale(1.2) !important;
+    z-index: 1000 !important;
+}
+
+/* Garantir que SVG inline renderize corretamente */
+.custom-marker svg {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+}

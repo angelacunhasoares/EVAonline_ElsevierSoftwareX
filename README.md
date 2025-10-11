@@ -34,26 +34,38 @@ EVAonline is a comprehensive web application for calculating reference evapotran
 
 ```
 EVAonline_ElsevierSoftwareX/
-├── api/                    # FastAPI backend services
-│   ├── main.py            # Main API application
-│   ├── data_service.py    # Data processing endpoints
-│   ├── websocket_service.py # WebSocket connections
-│   └── services/          # Service modules
-├── assets_generation/     # Scripts for generating static assets
-│   └── maps/             # Map generation scripts
-├── components/            # Reusable Dash components
-├── database/              # Database configuration and models
-│   ├── connection.py      # Database connection setup
-│   ├── models/           # SQLAlchemy models
-│   └── migrations/       # Database migration scripts
-├── frontend/             # Frontend application
-│   └── assets/          # Static assets (images, styles)
-│       └── images/      # Image assets
-├── pages/                # Dash page components
-├── utils/                # Utility functions
-├── monitoring/           # Prometheus configuration
+├── backend/               # Backend application layer
+│   ├── api/              # FastAPI REST API and WebSocket services
+│   ├── core/             # Core business logic (data processing, ETo calculations)
+│   ├── database/         # Database layer (models, connections, migrations)
+│   ├── infrastructure/   # Infrastructure services (cache, Celery workers)
+│   └── tests/            # Backend integration and unit tests
+├── frontend/             # Frontend Dash application
+│   ├── app.py           # Main Dash application
+│   ├── assets/          # Static assets (CSS, JS, images)
+│   ├── components/      # Reusable Dash components
+│   └── pages/           # Page-level components
+├── tests/                # Root-level integration and system tests
+│   └── integration/     # Cross-service integration tests
+├── scripts/              # Operational and maintenance scripts
+│   ├── manage_db.py     # Database management utilities
+│   └── get_hourly_data.py # Data ingestion scripts
+├── docs/                 # Project documentation
+│   ├── architecture.mmd  # System architecture diagram (Mermaid)
+│   ├── DATABASE_README.md # Database schema documentation
+│   └── guides/          # Setup and development guides
+├── config/               # Configuration files
+│   ├── settings/        # Application settings
+│   └── translations/    # i18n translation files
+├── utils/                # Shared utility modules
+├── alembic/              # Database migration scripts (Alembic)
+├── assets_generation/    # Static asset generation scripts
+├── monitoring/           # Observability configuration (Prometheus, Grafana)
+├── archive/              # Deprecated code and old versions
 ├── docker-compose.yml    # Multi-service orchestration
-└── requirements.txt      # Python dependencies
+├── Dockerfile            # Multi-stage container build
+├── alembic.ini          # Alembic migration configuration
+└── requirements.txt      # Python dependencies (152 packages)
 ```
 
 ## 🚀 Getting Started

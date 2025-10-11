@@ -62,25 +62,21 @@ coverage.xml
 .pytest_cache/
 
 # ===========================================
-# Old Test Files (Deprecated)
+# Archive and Deprecated Files
 # ===========================================
-# Ignorar testes antigos APENAS na raiz de tests/
-# Manter tests/integration/ e testes organizados
-/tests/test_db.py
-/tests/test_openmeteo.py
-/tests/test_postgres_connection.py
-/tests/test_psycopg2.py
-/tests/test_raw_postgres.py
-/tests/test_raw_postgres_fixed.py
-/tests/test_redis_postgres_integration.py
-/tests/test_redis_postgres_simple.py
-/tests/test_tcp_connection.py
-/tests/test_forecast_temp.py
-/tests/insert_data.py
-/tests/*.ps1
+# Arquivos antigos movidos para archive/
+archive/
 /tests/deprecated/
 !tests/conftest.py
 !tests/README.md
+!tests/*/README.md
+
+# Scripts de reorganização (desenvolvimento)
+reorganize_*.ps1
+reorganize_*.sh
+
+# Docker override local (não commitar)
+docker-compose.override.yml
 
 # ===========================================
 # Jupyter Notebook
@@ -350,8 +346,14 @@ System Volume Information/
 # ===========================================
 # Development & Testing
 # ===========================================
-# NOTA: test_*.py removido para permitir tests/integration/test_*.py
-# test_*.py (comentado - bloqueava tests de integração)
+# Scripts de reorganização
+reorganize_project.ps1
+cleanup_project.ps1
+
+# Testes temporários na raiz (manter testes organizados em tests/)
+/test_*.py
+/debug_*.py
+/analyze_*.py
 *_test.py
 temp_*.py
 *_temp.py
@@ -359,7 +361,6 @@ temp_*.py
 *_old.py
 dev_*.log
 development_*.log
-# api_test_*.py (comentado - bloqueava tests de API)
 *_api_test.py
 dev_notebooks/
 test_notebooks/
@@ -405,6 +406,30 @@ Dockerfile.backup
 .env.backup
 *.md.backup
 README.backup
+
+# ===========================================
+# Cleanup and Reorganization Artifacts
+# ===========================================
+archive/
+reorganize*.ps1
+cleanup*.ps1
+docker-compose.override.yml
+
+# ===========================================
+# Celery
+# ===========================================
+celerybeat-schedule
+celerybeat.pid
+*.celerybeat.db
+
+# ===========================================
+# Temporary Files
+# ===========================================
+temp/*.csv
+temp/*.json
+temp/*.xlsx
+*.tmp
+*.temp
 
 # ===========================================
 # Project Specific Files (KEPT)

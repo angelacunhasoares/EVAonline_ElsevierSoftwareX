@@ -12,7 +12,7 @@ services:
       - redis_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "evaonline", "ping"]
   nginx:
     image: nginx:alpine
     container_name: evaonline-nginx
@@ -105,6 +105,8 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-evaonline}:${POSTGRES_PASSWORD:-evaonline}@postgres:5432/${POSTGRES_DB:-evaonline}
       - REDIS_HOST=redis
       - REDIS_PASSWORD=${REDIS_PASSWORD:-evaonline}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-evaonline}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-evaonline}@redis:6379/0
       - TZ=UTC
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
@@ -133,6 +135,8 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-evaonline}:${POSTGRES_PASSWORD:-evaonline}@postgres:5432/${POSTGRES_DB:-evaonline}
       - REDIS_HOST=redis
       - REDIS_PASSWORD=${REDIS_PASSWORD:-evaonline}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-evaonline}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-evaonline}@redis:6379/0
       - TZ=UTC
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432

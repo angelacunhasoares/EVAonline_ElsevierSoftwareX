@@ -67,7 +67,7 @@ case "${SERVICE:-all}" in
 
         # Iniciar Celery Beat
         echo "Iniciando Celery Beat..."
-        exec celery -A backend.infrastructure.celery.celery_config beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+        exec celery -A backend.infrastructure.celery.celery_config beat --loglevel=info
         ;;
 
     "flower")

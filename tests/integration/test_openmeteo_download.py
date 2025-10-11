@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 # Adicionar projeto ao path
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from backend.api.services.openmeteo_matopiba_client import \

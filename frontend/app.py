@@ -59,11 +59,18 @@ def render_page_content(pathname):
     """
     Renderiza o conteúdo da página baseado na URL.
     """
+    print(f"🔍 DEBUG RENDER_PAGE_CONTENT: pathname={pathname}")
     if pathname == "/" or pathname == "/home":
         try:
-            return home_layout()
-        except ImportError:
-            return html.H1("Home Page - Layout não encontrado")
+            print("🏠 DEBUG: Calling home_layout()...")
+            layout = home_layout()
+            print(f"✅ DEBUG: home_layout() returned successfully")
+            return layout
+        except Exception as e:
+            print(f"❌ DEBUG: Error in home_layout(): {e}")
+            import traceback
+            traceback.print_exc()
+            return html.H1(f"Home Page - Error: {e}")
     
     elif pathname == "/eto":
         try:
@@ -226,28 +233,62 @@ def create_dash_app() -> dash.Dash:
     # Callback novo: Renderiza conteúdo da aba dinamicamente
     @app.callback(
         Output('tab-content', 'children'),
-        [Input('map-tabs', 'active_tab')]
+        [Input('map-tabs', 'value')]
     )
     def render_tab_content(active_tab):
+        print(f"🔍 DEBUG RENDER_TAB_CONTENT: active_tab={active_tab}")
         if active_tab == "world-tab":
+            print("🌍 DEBUG: Rendering world map...")
             return create_world_real_map()
         elif active_tab == "matopiba-tab":
+            print("🌾 DEBUG: Rendering MATOPIBA section...")
             return create_matopiba_forecast_section()
+        print("⚠️ DEBUG: No matching tab!")
         return "Selecione uma aba"
 
     # =========================================================================
     # CALLBACKS MATOPIBA
     # =========================================================================
     
-    # Callback para buscar dados de previsão MATOPIBA
+    # ✨ NOVO: Callback com LAZY LOADING + botão manual (removido auto-refresh inútil!)
+    # Carrega dados apenas quando:
+    # 1) Usuário clica na aba MATOPIBA (map-tabs = 'matopiba-tab')
+    # 2) Usuário clica no botão "Atualizar Dados"
     @app.callback(
         Output("matopiba-forecast-data", "data"),
         Output("matopiba-status-bar", "children"),
-        Input("matopiba-refresh-interval", "n_intervals")
+        Input("map-tabs", "value"),  # ✨ LAZY: Trigger quando aba muda
+        State("matopiba-refresh-button", "n_clicks"),  # State: não trigger, só lê valor
+        prevent_initial_call=False  # Permite load inicial
     )
-    def matopiba_fetch_data(n_intervals):
-        print(f"🔍 DEBUG FETCH APP: Triggered by n_intervals={n_intervals}")  # 🆕
-        return fetch_forecast_data(n_intervals)
+    def matopiba_fetch_data(active_tab, n_clicks):
+        """
+        Busca dados MATOPIBA apenas quando necessário (lazy loading).
+        Não faz polling inútil a cada 5s!
+        """
+        # Se não está na aba MATOPIBA, não buscar dados
+        if active_tab != "matopiba-tab":
+            print(f"⏭️ DEBUG FETCH: Tab={active_tab}, pulando fetch...")
+            return dash.no_update, dash.no_update
+        
+        print(f"🔍 DEBUG FETCH APP: Tab={active_tab}, n_clicks={n_clicks}")
+        # Usar n_clicks como "n_intervals" para compatibilidade com função existente
+        return fetch_forecast_data(n_clicks or 0)
+    
+    # ✨ NOVO: Callback do botão "Atualizar" - força re-fetch dos dados
+    @app.callback(
+        Output("matopiba-forecast-data", "data", allow_duplicate=True),
+        Output("matopiba-status-bar", "children", allow_duplicate=True),
+        Input("matopiba-refresh-button", "n_clicks"),
+        prevent_initial_call=True  # Não executa no load, só no click
+    )
+    def matopiba_manual_refresh(n_clicks):
+        """Atualização manual via botão - força busca de dados."""
+        if not n_clicks:
+            return dash.no_update, dash.no_update
+        
+        print(f"🔄 DEBUG MANUAL REFRESH: n_clicks={n_clicks}")
+        return fetch_forecast_data(n_clicks)
     
     # Callback para resumo da seleção MATOPIBA
     @app.callback(
