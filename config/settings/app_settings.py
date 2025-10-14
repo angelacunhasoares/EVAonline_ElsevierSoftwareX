@@ -31,7 +31,8 @@ class Settings(BaseSettings):
         "about": "/about",
         "documentation": "/documentation"
     }
-    DASH_ASSETS_FOLDER: str = "assets"
+    # Caminho relativo ao diretório do app.py (frontend/app.py)
+    DASH_ASSETS_FOLDER: str = "assets"  # frontend/assets/
     
     # Configurações do Banco de Dados
     POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "127.0.0.1")

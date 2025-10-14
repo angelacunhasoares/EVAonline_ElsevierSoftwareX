@@ -68,6 +68,9 @@ def mount_dash(app: FastAPI) -> FastAPI:
     dash_app = create_dash_app()
     # Converter WSGI app para ASGI app
     asgi_app = WsgiToAsgi(dash_app.server)
+    
+    # IMPORTANTE: mount() com "/" deve ser o ÚLTIMO, senão captura tudo
+    # Mas como temos rotas da API já registradas, elas têm precedência
     app.mount(
         settings.DASH_URL_BASE_PATHNAME,
         asgi_app,
@@ -76,7 +79,10 @@ def mount_dash(app: FastAPI) -> FastAPI:
     return app
 
 
+# Criar aplicação FastAPI primeiro
 app = create_application()
+
+# Montar Dash POR ÚLTIMO (após todas as rotas da API estarem registradas)
 app = mount_dash(app)
 
 if __name__ == "__main__":

@@ -136,7 +136,12 @@ def create_dash_app() -> dash.Dash:
             'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
         ],
         external_scripts=[
-            'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+            'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+            # 🔥 Heatmap.js para visualização MATOPIBA (ordem importa!)
+            '/assets/heatmap.js',              # 1. Biblioteca base h337
+            '/assets/leaflet-heatmap.js',      # 2. Plugin Leaflet
+            '/assets/heatmap-auto-render.js',  # 3. Auto-render (NOVA SOLUÇÃO!)
+            '/assets/debug-heatmap.js'         # 4. Debug automático 🔍
         ],
         suppress_callback_exceptions=True,
         title=settings.PROJECT_NAME
@@ -320,6 +325,24 @@ def create_dash_app() -> dash.Dash:
         result = render_maps(forecast_data, selected_vars, selected_days)
         print(f"✅ DEBUG RENDER APP: Mapas gerados - retornando componentes")  # 🆕
         return result
+    
+    # 🔥 Callback clientside para aplicar heatmap MATOPIBA
+    # Usa função JavaScript externa definida em assets/heatmap-callback.js
+    try:
+        # Registrar callback clientside para cada combinação possível
+        for day_key in ['today', 'tomorrow']:
+            for var_key in ['eto', 'precipitation']:  # 🔧 CORRIGIDO: 'eto' não 'eto_calculated'
+                app.clientside_callback(
+                    # Referência para função JavaScript em window.dash_clientside.matopiba.renderHeatmap
+                    "window.dash_clientside.matopiba.renderHeatmap",
+                    Output(f'heatmap-trigger-{day_key}-{var_key}', 'children'),
+                    Input(f'heatmap-data-{day_key}-{var_key}', 'data')
+                    # prevent_initial_call removido para permitir renderização inicial
+                )
+                logger.info(f"✅ Callback clientside heatmap registrado: {day_key}/{var_key}")
+    except Exception as e:
+        logger.warning(f"⚠️ Erro ao registrar callbacks clientside heatmap: {e}")
+        logger.exception(e)
 
     # =========================================================================
     # CALLBACKS GERAIS

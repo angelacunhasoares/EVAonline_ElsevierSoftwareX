@@ -8,7 +8,7 @@ from datetime import datetime
 from celery import Celery
 from celery.schedules import crontab
 from kombu import Queue
-from redis.asyncio import Redis
+from redis import Redis
 
 from backend.api.middleware.prometheus_metrics import (CELERY_TASK_DURATION,
                                                        CELERY_TASKS_TOTAL)
@@ -29,15 +29,26 @@ celery_app = Celery(
 
 # Classe base para tarefas com monitoramento e progresso
 class MonitoredProgressTask(celery_app.Task):
-    async def publish_progress(self, task_id, progress, status="PROGRESS"):
+    def publish_progress(self, task_id, progress, status="PROGRESS"):
         """Publica progresso no canal Redis para WebSocket."""
-        redis_client = Redis.from_url(settings.CELERY_BROKER_URL)
-        await redis_client.publish(f"task_status:{task_id}", json.dumps({
-            "status": status,
-            "info": progress,
-            "timestamp": datetime.now().isoformat()
-        }))
-        await redis_client.close()
+        try:
+            redis_client = Redis.from_url(
+                settings.CELERY_BROKER_URL,
+                decode_responses=True
+            )
+            redis_client.publish(
+                f"task_status:{task_id}",
+                json.dumps({
+                    "status": status,
+                    "info": progress,
+                    "timestamp": datetime.now().isoformat()
+                })
+            )
+            redis_client.close()
+        except Exception as e:
+            # Não bloqueia a task se falhar publicação de progresso
+            import logging
+            logging.warning(f"Falha ao publicar progresso: {e}")
 
     def __call__(self, *args, **kwargs):
         """Rastreia duração e status da tarefa para Prometheus."""

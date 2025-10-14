@@ -12,7 +12,6 @@ Data: 2025-10-09
 
 import json
 import os
-import pickle
 from datetime import datetime
 from typing import Dict, Optional
 
@@ -33,12 +32,12 @@ if REDIS_PASSWORD:
 else:
     REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
-REDIS_KEY_FORECASTS = "matopiba:forecasts:today_tomorrow"
-REDIS_KEY_METADATA = "matopiba:metadata"
+REDIS_KEY_FORECASTS = "matopiba:forecasts:latest"
+REDIS_KEY_METADATA = "matopiba:metadata:latest"
 
 # Router para endpoints MATOPIBA
 matopiba_router = APIRouter(
-    prefix="/api/matopiba",
+    prefix="/matopiba",  # O /api/v1 já vem do router principal
     tags=["MATOPIBA Forecasts"]
 )
 
@@ -134,7 +133,8 @@ async def get_matopiba_forecasts() -> Dict:
         # Obter dados do cache
         try:
             cache_data_raw = redis_client.get(REDIS_KEY_FORECASTS)
-            cache_data = pickle.loads(cache_data_raw)
+            # Os dados estão salvos como JSON, não Pickle
+            cache_data = json.loads(cache_data_raw)
             
             # Adicionar TTL ao metadata
             ttl_seconds = redis_client.ttl(REDIS_KEY_FORECASTS)
@@ -149,7 +149,7 @@ async def get_matopiba_forecasts() -> Dict:
             
             return cache_data
             
-        except pickle.UnpicklingError as e:
+        except (json.JSONDecodeError, KeyError) as e:
             logger.error("Erro ao deserializar cache: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
